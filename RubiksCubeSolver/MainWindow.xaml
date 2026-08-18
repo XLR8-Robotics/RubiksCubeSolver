@@ -1,0 +1,259 @@
+<Window x:Class="RubiksCubeSolver.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:RubiksCubeSolver.ViewModels"
+        xmlns:controls="clr-namespace:RubiksCubeSolver.Controls"
+        Title="Rubik's Cube Solver — Mini Maestro 12"
+        Height="940" Width="1480"
+        MinHeight="780" MinWidth="1280"
+        Background="{StaticResource BgBrush}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolVis"/>
+    </Window.Resources>
+    <DockPanel Margin="16">
+        <Border DockPanel.Dock="Top" Style="{StaticResource Panel}" Margin="0,0,0,12" Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="RUBIK'S CUBE SOLVER" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="OTVINTA 4-arm robot · Pololu Mini Maestro 12 · Webcam scan" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding ConnectionText}" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Webcam" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedBrush}"/>
+                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"
+                              Width="260" Margin="0,0,8,0" ToolTip="Choose the robot webcam"/>
+                    <Button Content="Use camera" Command="{Binding ApplyCameraCommand}" Background="{StaticResource PanelAltBrush}"/>
+                    <CheckBox Content="Test mode (no hardware)" IsChecked="{Binding TestMode}"
+                              VerticalAlignment="Center" Margin="8,0,16,0"
+                              ToolTip="Scramble and solve on the digital cube only. No Maestro, webcam, or robot motion."/>
+                    <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" Background="{StaticResource PanelAltBrush}"/>
+                    <Button Content="Connect" Command="{Binding ConnectCommand}" Background="{StaticResource BlueBrush}"/>
+                    <Button Content="Disconnect" Command="{Binding DisconnectCommand}" Background="{StaticResource PanelAltBrush}" Margin="0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Panel}" Margin="0,12,0,0">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding StatusText}" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1" Text="{Binding CameraResolution, StringFormat=Camera {0}}" Foreground="{StaticResource MutedBrush}"/>
+                </Grid>
+                <ProgressBar Value="{Binding Progress}" Maximum="1" Margin="0,8,0,12"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Load" Command="{Binding LoadCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                    <Button Content="Unload" Command="{Binding UnloadCommand}" Background="{StaticResource PanelAltBrush}"/>
+                    <Button Content="Start" Command="{Binding StartCommand}" Background="{StaticResource AccentBrush}"/>
+                    <Button Content="Stop" Command="{Binding StopCommand}" Background="{StaticResource StopBrush}"/>
+                    <Button Content="Camera" Command="{Binding CameraPreviewPoseCommand}" Background="{StaticResource BlueBrush}"/>
+                    <Button Content="Servos off" Command="{Binding ServosOffCommand}" Background="{StaticResource PanelAltBrush}"/>
+                    <Button Content="Solve net" Command="{Binding SolveNetCommand}" Background="{StaticResource PanelAltBrush}" Margin="0"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TabControl>
+            <TabItem Header="Control">
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.15*"/>
+                        <ColumnDefinition Width="0.9*"/>
+                        <ColumnDefinition Width="1.1*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource Panel}" Margin="0,0,10,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="WEBCAM" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="Use" Command="{Binding ApplyCameraCommand}"
+                                        Background="{StaticResource BlueBrush}" MinWidth="64" Margin="8,0,0,0"/>
+                                <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"/>
+                            </DockPanel>
+                            <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
+                                <Image Source="{Binding CameraImage}" Stretch="Uniform"/>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="0,0,10,0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <TextBlock Text="DIGITAL CUBE" FontWeight="Bold" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="Turns with the robot. Click the net below to fix a color." Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            </StackPanel>
+                            <Viewbox DockPanel.Dock="Bottom" Stretch="Uniform" Height="140" Margin="0,8,0,0">
+                                <Grid x:Name="CubeNetHost" Width="420" Height="320"/>
+                            </Viewbox>
+                            <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
+                                <controls:Cube3DView x:Name="CubeView" Stickers="{Binding Stickers}"/>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Grid.Column="2" Style="{StaticResource Panel}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="STATUS" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding SolutionText}" TextWrapping="Wrap" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,8"/>
+                            <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto">
+                                <TextBox Text="{Binding LogText, Mode=OneWay}" IsReadOnly="True"
+                                         TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                         FontFamily="Consolas" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Calibration">
+                <ScrollViewer Margin="0,10,0,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Pololu Mini Maestro 12 — USB Dual Port Command Port" FontWeight="SemiBold"/>
+                                <TextBlock Text="Values are pulse widths in microseconds from Maestro Control Center. Even channels are grippers, odd channels are rack-and-pinion arms. Port 9 is the bottom arm (the original screenshot labeled it Arm Left twice)." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock Text="Webcam" Width="120" VerticalAlignment="Center"/>
+                                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"/>
+                                </DockPanel>
+                                <DockPanel Margin="0,0,0,8">
+                                    <TextBlock Text="Serial port" Width="120" VerticalAlignment="Center"/>
+                                    <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedPort}" DisplayMemberPath="Caption"/>
+                                </DockPanel>
+                                <WrapPanel>
+                                    <CheckBox Content="Test mode (no hardware)" IsChecked="{Binding TestMode}" Margin="0,0,16,8"/>
+                                    <CheckBox Content="Rotate photos 180°" IsChecked="{Binding Settings.RotatePhotos180}" Margin="0,0,16,8"/>
+                                    <CheckBox Content="Invert pitch (L/R tumble)" IsChecked="{Binding Settings.InvertPitch}" Margin="0,0,16,8"/>
+                                    <CheckBox Content="Invert yaw (U/D tumble)" IsChecked="{Binding Settings.InvertYaw}" Margin="0,0,16,8"/>
+                                </WrapPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Video settle ms" Width="120" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.VideoDurationMs}" Width="80" Margin="0,0,16,0"/>
+                                    <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.FaceMargin}" Width="80" Margin="0,0,16,0"/>
+                                    <TextBlock Text="Settle ms" Width="80" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.SettleMs}" Width="80"/>
+                                </StackPanel>
+                                <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" Background="{StaticResource AccentBrush}" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+
+                        <UniformGrid Columns="2">
+                            <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
+                                <StackPanel>
+                                    <TextBlock Text="Right turner  ·  port 0" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightTurner.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightTurner.EndUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Right arm  ·  port 1" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightArm.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="In" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightArm.InUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Out" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightArm.OutUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
+                                <StackPanel>
+                                    <TextBlock Text="Top turner  ·  port 2" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopTurner.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopTurner.EndUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Top arm  ·  port 3" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopArm.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="In" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopArm.InUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Out" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopArm.OutUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
+                                <StackPanel>
+                                    <TextBlock Text="Left turner  ·  port 6" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftTurner.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftTurner.EndUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Left arm  ·  port 7" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftArm.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="In" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftArm.InUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Out" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftArm.OutUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
+                                <StackPanel>
+                                    <TextBlock Text="Bottom turner  ·  port 8" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomTurner.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomTurner.EndUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Bottom arm  ·  port 9" FontWeight="SemiBold"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomArm.Port}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="In" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomArm.InUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Out" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomArm.OutUs}" Width="70"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

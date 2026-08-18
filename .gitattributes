@@ -1,0 +1,8 @@
+* text=auto eol=crlf
+*.cs text diff=csharp
+*.xaml text
+*.csproj text
+*.slnx text
+*.json text
+*.md text
+*.gitignore text
