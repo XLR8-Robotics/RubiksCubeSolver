@@ -154,11 +154,12 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="48"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Edge inset" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1" Minimum="0.05" Maximum="0.42" Value="{Binding FaceMargin, Mode=TwoWay}"
-                                            SmallChange="0.005" LargeChange="0.02"
-                                            ToolTip="Larger inset shrinks the 3×3 toward the center."/>
-                                    <TextBlock Grid.Column="2" Text="{Binding FaceMargin, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="Grid size" VerticalAlignment="Center"
+                                               ToolTip="Drag right to make the 3×3 bigger. 0.40–0.50 on Edge inset was the smallest grid."/>
+                                    <Slider Grid.Column="1" Minimum="0.16" Maximum="1" Value="{Binding FaceGridSize, Mode=TwoWay}"
+                                            SmallChange="0.01" LargeChange="0.05"
+                                            ToolTip="Right = bigger square. Left = smaller square."/>
+                                    <TextBlock Grid.Column="2" Text="{Binding FaceGridSize, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
@@ -232,7 +233,8 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="Video settle ms" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.VideoDurationMs}" Width="80" Margin="0,0,16,0"/>
-                                    <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"
+                                               ToolTip="Old inset value. 0 = largest grid, 0.42 = smallest. Prefer Grid size on the Scan grid tab."/>
                                     <TextBox Text="{Binding FaceMargin}" Width="80" Margin="0,0,16,0"/>
                                     <TextBlock Text="Settle ms" Width="80" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.SettleMs}" Width="80" Margin="0,0,16,0"/>

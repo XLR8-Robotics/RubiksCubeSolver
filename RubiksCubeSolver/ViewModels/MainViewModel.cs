@@ -134,7 +134,7 @@ public partial class MainViewModel : ObservableObject
         get => Settings.FaceMargin;
         set
         {
-            var next = Math.Clamp(value, 0.05, 0.42);
+            var next = Math.Clamp(value, 0, 0.42);
             if (Math.Abs(Settings.FaceMargin - next) < 0.0005)
             {
                 return;
@@ -142,6 +142,17 @@ public partial class MainViewModel : ObservableObject
 
             Settings.FaceMargin = next;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(FaceGridSize));
+        }
+    }
+
+    public double FaceGridSize
+    {
+        get => Math.Clamp(1 - 2 * Settings.FaceMargin, 0.16, 1);
+        set
+        {
+            var size = Math.Clamp(value, 0.16, 1);
+            FaceMargin = (1 - size) / 2;
         }
     }
 
@@ -444,6 +455,7 @@ public partial class MainViewModel : ObservableObject
         Settings.FaceSampleInset = 0.18;
         Settings.FaceAutoDetect = false;
         OnPropertyChanged(nameof(FaceMargin));
+        OnPropertyChanged(nameof(FaceGridSize));
         OnPropertyChanged(nameof(FaceOffsetX));
         OnPropertyChanged(nameof(FaceOffsetY));
         OnPropertyChanged(nameof(FaceSampleInset));

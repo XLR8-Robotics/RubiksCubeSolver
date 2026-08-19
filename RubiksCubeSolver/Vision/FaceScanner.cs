@@ -48,7 +48,7 @@ public static class FaceScanner
 
     public static Rect CalibratedFaceRect(int width, int height, AppSettings settings)
     {
-        var margin = Math.Clamp(settings.FaceMargin, 0.05, 0.42);
+        var margin = Math.Clamp(settings.FaceMargin, 0, 0.42);
         var offsetX = Math.Clamp(settings.FaceOffsetX, -0.4, 0.4);
         var offsetY = Math.Clamp(settings.FaceOffsetY, -0.4, 0.4);
         var side = Math.Min(width, height) * (1 - 2 * margin);
