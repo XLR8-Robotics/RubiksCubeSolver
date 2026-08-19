@@ -19,6 +19,6 @@ public sealed class ScanPitchToTopCommand : IRobotCommand
         _robot.CommandAsync(Name, async ct =>
         {
             await _secure.ExecuteAsync(ct);
-            await _robot.PitchSpin90Async(ct, opposite: false);
+            await _robot.PitchSpin90Async(ct, opposite: true);
         }, cancellationToken);
 }
