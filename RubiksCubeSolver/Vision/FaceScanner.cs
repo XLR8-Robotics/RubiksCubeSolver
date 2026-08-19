@@ -11,30 +11,133 @@ public sealed class SampledFace
 
 public static class FaceScanner
 {
-    public static SampledFace Sample(Mat bgr, double margin)
+    public static SampledFace Sample(Mat bgr, AppSettings settings)
     {
-        margin = Math.Clamp(margin, 0.05, 0.4);
         using var work = EnsureBgr(bgr);
         if (work.Empty() || work.Rows < 2 || work.Cols < 2)
         {
             throw new InvalidOperationException("Camera frame was empty or too small to scan.");
         }
 
-        var quad = TryFindFaceQuad(work) ?? DefaultQuad(work.Width, work.Height, margin);
+        var autoQuad = settings.FaceAutoDetect ? TryFindFaceQuad(work) : null;
+        if (autoQuad is not null)
+        {
+            return SampleWarped(work, autoQuad, settings.FaceSampleInset);
+        }
+
+        var face = CalibratedFaceRect(work.Width, work.Height, settings);
+        var preview = work.Clone();
+        var samples = SampleAndDraw(preview, face, settings.FaceSampleInset, draw: true);
+        return new SampledFace { Samples = samples, Preview = preview };
+    }
+
+    public static Mat OverlayLive(Mat bgr, AppSettings settings, out Scalar[] samples)
+    {
+        using var work = EnsureBgr(bgr);
+        var preview = work.Clone();
+        if (preview.Empty() || preview.Rows < 2 || preview.Cols < 2)
+        {
+            samples = new Scalar[9];
+            return preview;
+        }
+
+        var face = CalibratedFaceRect(preview.Width, preview.Height, settings);
+        samples = SampleAndDraw(preview, face, settings.FaceSampleInset, draw: true);
+        return preview;
+    }
+
+    public static Rect CalibratedFaceRect(int width, int height, AppSettings settings)
+    {
+        var margin = Math.Clamp(settings.FaceMargin, 0.05, 0.42);
+        var offsetX = Math.Clamp(settings.FaceOffsetX, -0.4, 0.4);
+        var offsetY = Math.Clamp(settings.FaceOffsetY, -0.4, 0.4);
+        var side = Math.Min(width, height) * (1 - 2 * margin);
+        side = Math.Max(side, 36);
+        var cx = width * (0.5 + offsetX);
+        var cy = height * (0.5 + offsetY);
+        var half = side / 2;
+        cx = Math.Clamp(cx, half, width - half);
+        cy = Math.Clamp(cy, half, height - half);
+        var x = (int)Math.Round(cx - half);
+        var y = (int)Math.Round(cy - half);
+        var size = (int)Math.Round(side);
+        size = Math.Max(30, Math.Min(size, Math.Min(width - x, height - y)));
+        return new Rect(x, y, size, size);
+    }
+
+    static Scalar[] SampleAndDraw(Mat bgr, Rect face, double sampleInset, bool draw)
+    {
+        var samples = new Scalar[9];
+        var inset = Math.Clamp(sampleInset, 0.04, 0.42);
+        var cell = face.Width / 3.0;
+        var pad = cell * inset;
+        var thickness = Math.Max(2, face.Width / 90);
+        var rois = new Rect[9];
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                var x = (int)Math.Round(face.X + c * cell + pad);
+                var y = (int)Math.Round(face.Y + r * cell + pad);
+                var w = Math.Max(4, (int)Math.Round(cell - pad * 2));
+                var roi = ClampRect(new Rect(x, y, w, w), bgr.Width, bgr.Height);
+                rois[r * 3 + c] = roi;
+                if (roi.Width > 1 && roi.Height > 1)
+                {
+                    using var patch = bgr.SubMat(roi);
+                    samples[r * 3 + c] = Cv2.Mean(patch);
+                }
+            }
+        }
+
+        if (draw)
+        {
+            Cv2.Rectangle(bgr, face, new Scalar(0, 200, 255), thickness);
+            for (int i = 1; i < 3; i++)
+            {
+                var x = (int)Math.Round(face.X + i * cell);
+                var y = (int)Math.Round(face.Y + i * cell);
+                Cv2.Line(bgr, new Point(x, face.Y), new Point(x, face.Y + face.Height), new Scalar(0, 180, 220), 1);
+                Cv2.Line(bgr, new Point(face.X, y), new Point(face.X + face.Width, y), new Scalar(0, 180, 220), 1);
+            }
+
+            foreach (var roi in rois)
+            {
+                if (roi.Width > 1 && roi.Height > 1)
+                {
+                    Cv2.Rectangle(bgr, roi, new Scalar(0, 255, 255), thickness);
+                }
+            }
+        }
+
+        return samples;
+    }
+
+    static Rect ClampRect(Rect roi, int width, int height)
+    {
+        var x = Math.Clamp(roi.X, 0, Math.Max(0, width - 1));
+        var y = Math.Clamp(roi.Y, 0, Math.Max(0, height - 1));
+        var w = Math.Clamp(roi.Width, 1, width - x);
+        var h = Math.Clamp(roi.Height, 1, height - y);
+        return new Rect(x, y, w, h);
+    }
+
+    static SampledFace SampleWarped(Mat work, Point2f[] quad, double sampleInset)
+    {
         var warped = WarpFace(work, quad, 300);
         DrawQuad(work, quad);
 
         var samples = new Scalar[9];
         const int size = 300;
         const int cell = size / 3;
-        const int inset = 18;
+        var inset = (int)Math.Round(cell * Math.Clamp(sampleInset, 0.04, 0.42));
         for (int r = 0; r < 3; r++)
         {
             for (int c = 0; c < 3; c++)
             {
                 var x = c * cell + inset;
                 var y = r * cell + inset;
-                var w = cell - inset * 2;
+                var w = Math.Max(4, cell - inset * 2);
                 var roi = new Rect(x, y, w, w);
                 using var patch = warped.SubMat(roi);
                 samples[r * 3 + c] = Cv2.Mean(patch);
@@ -68,15 +171,6 @@ public static class FaceScanner
         }
 
         return bgr;
-    }
-
-    static Point2f[] DefaultQuad(int width, int height, double margin)
-    {
-        var x0 = (float)(width * margin);
-        var y0 = (float)(height * margin);
-        var x1 = (float)(width * (1 - margin));
-        var y1 = (float)(height * (1 - margin));
-        return [new(x0, y0), new(x1, y0), new(x1, y1), new(x0, y1)];
     }
 
     static Point2f[]? TryFindFaceQuad(Mat bgr)

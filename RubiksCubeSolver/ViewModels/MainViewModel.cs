@@ -80,6 +80,7 @@ public partial class MainViewModel : ObservableObject
     {
         Settings = AppSettings.Load();
         Stickers = new ObservableCollection<StickerCell>(Enumerable.Range(0, 54).Select(i => new StickerCell(i)));
+        ScanPreviewStickers = new ObservableCollection<StickerCell>(Enumerable.Range(0, 9).Select(i => new StickerCell(i)));
         ApplyStickers(_digital.Colors);
         RefreshDevices();
         _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
@@ -108,6 +109,7 @@ public partial class MainViewModel : ObservableObject
 
     public AppSettings Settings { get; }
     public ObservableCollection<StickerCell> Stickers { get; }
+    public ObservableCollection<StickerCell> ScanPreviewStickers { get; }
     public ObservableCollection<SerialDevice> SerialPorts { get; } = [];
     public ObservableCollection<CameraDevice> Cameras { get; } = [];
     public Func<CubeMove, Action, CancellationToken, Task>? AnimateDigitalMove { get; set; }
@@ -126,6 +128,85 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] string cameraResolution = "";
 
     public bool CanOperate => !IsBusy;
+
+    public double FaceMargin
+    {
+        get => Settings.FaceMargin;
+        set
+        {
+            var next = Math.Clamp(value, 0.05, 0.42);
+            if (Math.Abs(Settings.FaceMargin - next) < 0.0005)
+            {
+                return;
+            }
+
+            Settings.FaceMargin = next;
+            OnPropertyChanged();
+        }
+    }
+
+    public double FaceOffsetX
+    {
+        get => Settings.FaceOffsetX;
+        set
+        {
+            var next = Math.Clamp(value, -0.35, 0.35);
+            if (Math.Abs(Settings.FaceOffsetX - next) < 0.0005)
+            {
+                return;
+            }
+
+            Settings.FaceOffsetX = next;
+            OnPropertyChanged();
+        }
+    }
+
+    public double FaceOffsetY
+    {
+        get => Settings.FaceOffsetY;
+        set
+        {
+            var next = Math.Clamp(value, -0.35, 0.35);
+            if (Math.Abs(Settings.FaceOffsetY - next) < 0.0005)
+            {
+                return;
+            }
+
+            Settings.FaceOffsetY = next;
+            OnPropertyChanged();
+        }
+    }
+
+    public double FaceSampleInset
+    {
+        get => Settings.FaceSampleInset;
+        set
+        {
+            var next = Math.Clamp(value, 0.04, 0.42);
+            if (Math.Abs(Settings.FaceSampleInset - next) < 0.0005)
+            {
+                return;
+            }
+
+            Settings.FaceSampleInset = next;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool FaceAutoDetect
+    {
+        get => Settings.FaceAutoDetect;
+        set
+        {
+            if (Settings.FaceAutoDetect == value)
+            {
+                return;
+            }
+
+            Settings.FaceAutoDetect = value;
+            OnPropertyChanged();
+        }
+    }
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(CanOperate));
 
@@ -300,7 +381,7 @@ public partial class MainViewModel : ObservableObject
             if (frame is not null)
             {
                 ShowFrame(frame);
-                var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
+                var sampled = FaceScanner.Sample(frame, Settings);
                 ShowFrame(sampled.Preview);
                 sampled.Preview.Dispose();
                 AppendLog($"Test photo captured ({_webcam.Resolution}).");
@@ -336,6 +417,46 @@ public partial class MainViewModel : ObservableObject
         {
             AppendLog(ex.Message);
         }
+    }
+
+    [RelayCommand]
+    public void ResetScanGrid()
+    {
+        Settings.FaceMargin = 0.22;
+        Settings.FaceOffsetX = 0;
+        Settings.FaceOffsetY = 0;
+        Settings.FaceSampleInset = 0.18;
+        Settings.FaceAutoDetect = false;
+        OnPropertyChanged(nameof(FaceMargin));
+        OnPropertyChanged(nameof(FaceOffsetX));
+        OnPropertyChanged(nameof(FaceOffsetY));
+        OnPropertyChanged(nameof(FaceSampleInset));
+        OnPropertyChanged(nameof(FaceAutoDetect));
+        AppendLog("Scan grid reset to a centered square. Press Keep these settings to save it.");
+    }
+
+    [RelayCommand]
+    public async Task HugForScanGridAsync()
+    {
+        await RunExclusiveAsync("Hug for scan grid", async ct =>
+        {
+            if (TestMode)
+            {
+                AppendLog("Test mode: hug skipped. Line up the grid on the webcam still.");
+                return;
+            }
+
+            EnsureRobot();
+            await _robot!.HugAsync(ct);
+            AppendLog("Cube hugged. Line up the yellow boxes with the front face stickers.");
+        });
+    }
+
+    [RelayCommand]
+    public void SaveScanGrid()
+    {
+        Settings.MergeScanGridIntoFile();
+        AppendLog($"Scan grid saved to settings.json (inset {Settings.FaceMargin:F2}, right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, box {Settings.FaceSampleInset:F2}).");
     }
 
     [RelayCommand]
@@ -679,13 +800,13 @@ public partial class MainViewModel : ObservableObject
     async Task<List<Scalar[]>> ScanAllFacesAsync(CancellationToken cancellationToken)
     {
         var map = new Dictionary<CubeFace, Scalar[]>();
-        AppendLog("Scan: F merge, yaw R, reset, yaw F, reset, yaw L, reset, yaw B merge, yaw to F, pitch U, reset, yaw F, pitch D, hug.");
+        AppendLog("Scan: F merge, yaw R, reset, yaw F, reset, yaw L, reset, yaw B merge, yaw to F, pitch U, T/B hold then L/R out-reset-in, pitch back, reset, pitch D, hug.");
 
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
         {
             using var frame = await _webcam.GrabSettledAsync(settleMs, Settings.RotatePhotos180, cancellationToken)
                               ?? throw new InvalidOperationException("Camera frame was empty.");
-            var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
+            var sampled = FaceScanner.Sample(frame, Settings);
             ShowFrame(sampled.Preview);
             var samples = sampled.Samples;
             sampled.Preview.Dispose();
@@ -945,11 +1066,19 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var bitmap = _webcam.GrabBitmap(Settings.RotatePhotos180);
-        if (bitmap is not null)
+        using var frame = _webcam.Grab(Settings.RotatePhotos180);
+        if (frame is null)
         {
-            bitmap.Freeze();
-            CameraImage = bitmap;
+            return;
+        }
+
+        using var overlay = FaceScanner.OverlayLive(frame, Settings, out var samples);
+        var bitmap = overlay.ToBitmapSource();
+        bitmap.Freeze();
+        CameraImage = bitmap;
+        for (int i = 0; i < 9 && i < samples.Length; i++)
+        {
+            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i]);
         }
     }
 

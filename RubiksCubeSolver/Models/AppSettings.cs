@@ -29,7 +29,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 8;
+    public const int CurrentCalibrationVersion = 9;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -37,6 +37,10 @@ public sealed class AppSettings
     public bool RotatePhotos180 { get; set; }
     public int VideoDurationMs { get; set; } = 1000;
     public double FaceMargin { get; set; } = 0.22;
+    public double FaceOffsetX { get; set; }
+    public double FaceOffsetY { get; set; }
+    public double FaceSampleInset { get; set; } = 0.18;
+    public bool FaceAutoDetect { get; set; }
     public bool InvertPitch { get; set; }
     public bool InvertYaw { get; set; }
     public bool TestMode { get; set; }
@@ -113,6 +117,11 @@ public sealed class AppSettings
                 settings.ApplyMatchedOppositeEnds();
             }
 
+            if (settings.CalibrationVersion < 9)
+            {
+                settings.ApplyScanGridDefaults();
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -180,6 +189,14 @@ public sealed class AppSettings
         BottomTurner.OppositeEndUs = BottomTurner.MirroredEndUs();
     }
 
+    public void ApplyScanGridDefaults()
+    {
+        if (FaceSampleInset <= 0)
+        {
+            FaceSampleInset = 0.18;
+        }
+    }
+
     public void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
@@ -188,5 +205,45 @@ public sealed class AppSettings
             WriteIndented = true
         });
         File.WriteAllText(FilePath, json);
+    }
+
+    /// <summary>
+    /// Writes the current scan-grid fields into settings.json, keeping every other key already on disk.
+    /// </summary>
+    public void MergeScanGridIntoFile()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        System.Text.Json.Nodes.JsonObject root;
+        if (File.Exists(FilePath))
+        {
+            try
+            {
+                root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(FilePath)) as System.Text.Json.Nodes.JsonObject
+                       ?? new System.Text.Json.Nodes.JsonObject();
+            }
+            catch
+            {
+                root = new System.Text.Json.Nodes.JsonObject();
+            }
+        }
+        else
+        {
+            root = System.Text.Json.Nodes.JsonNode.Parse(
+                       System.Text.Json.JsonSerializer.Serialize(this)) as System.Text.Json.Nodes.JsonObject
+                   ?? new System.Text.Json.Nodes.JsonObject();
+        }
+
+        root["FaceMargin"] = FaceMargin;
+        root["FaceOffsetX"] = FaceOffsetX;
+        root["FaceOffsetY"] = FaceOffsetY;
+        root["FaceSampleInset"] = FaceSampleInset;
+        root["FaceAutoDetect"] = FaceAutoDetect;
+        root["RotatePhotos180"] = RotatePhotos180;
+        root["CalibrationVersion"] = CurrentCalibrationVersion;
+
+        File.WriteAllText(FilePath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        }));
     }
 }

@@ -11,6 +11,7 @@ public sealed class MaestroController : IDisposable
     public const byte SetTargetCommand = 0x84;
     public const byte SetSpeedCommand = 0x87;
     public const byte SetAccelerationCommand = 0x89;
+    public const byte GetPositionCommand = 0x90;
     public const byte GetMovingStateCommand = 0x93;
 
     readonly object _gate = new();
@@ -110,6 +111,39 @@ public sealed class MaestroController : IDisposable
             }
 
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Current servo position in microseconds, or null if the Maestro did not answer.
+    /// </summary>
+    public double? GetPositionMicroseconds(byte channel)
+    {
+        if (Simulate || _port is not { IsOpen: true })
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                _port.DiscardInBuffer();
+                _port.Write([GetPositionCommand, channel], 0, 2);
+                try
+                {
+                    var low = _port.ReadByte();
+                    var high = _port.ReadByte();
+                    var quarters = low | (high << 8);
+                    return quarters / 4.0;
+                }
+                catch (TimeoutException)
+                {
+                    // Retry; callers must not treat a missed read as "already at Start".
+                }
+            }
+
+            return null;
         }
     }
 

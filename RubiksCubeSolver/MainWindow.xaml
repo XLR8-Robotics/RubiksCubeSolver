@@ -113,6 +113,103 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Scan grid">
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.6*"/>
+                        <ColumnDefinition Width="0.9*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource Panel}" Margin="0,0,10,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="LIVE GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,8"
+                                       Text="Connect the webcam, hug a cube, then drag the sliders until each yellow box sits on one sticker. Press Keep these settings to write this grid into settings.json. Servo calibration is left unchanged."/>
+                            <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
+                                <Image Source="{Binding CameraImage}" Stretch="Uniform"/>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource Panel}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="STICKER READ" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                                <ItemsControl ItemsSource="{Binding ScanPreviewStickers}" Width="168" Height="168" HorizontalAlignment="Left" Margin="0,0,0,16">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="3" Columns="3"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{Binding Brush}" Margin="3" CornerRadius="4"
+                                                    BorderBrush="#F5D000" BorderThickness="2"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="108"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="48"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Edge inset" VerticalAlignment="Center"/>
+                                    <Slider Grid.Column="1" Minimum="0.05" Maximum="0.42" Value="{Binding FaceMargin, Mode=TwoWay}"
+                                            SmallChange="0.005" LargeChange="0.02"
+                                            ToolTip="Larger inset shrinks the 3×3 toward the center."/>
+                                    <TextBlock Grid.Column="2" Text="{Binding FaceMargin, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="108"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="48"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Move right" VerticalAlignment="Center"/>
+                                    <Slider Grid.Column="1" Minimum="-0.35" Maximum="0.35" Value="{Binding FaceOffsetX, Mode=TwoWay}"
+                                            SmallChange="0.005" LargeChange="0.02"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding FaceOffsetX, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="108"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="48"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Move down" VerticalAlignment="Center"/>
+                                    <Slider Grid.Column="1" Minimum="-0.35" Maximum="0.35" Value="{Binding FaceOffsetY, Mode=TwoWay}"
+                                            SmallChange="0.005" LargeChange="0.02"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding FaceOffsetY, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="108"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="48"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Box inset" VerticalAlignment="Center"/>
+                                    <Slider Grid.Column="1" Minimum="0.04" Maximum="0.42" Value="{Binding FaceSampleInset, Mode=TwoWay}"
+                                            SmallChange="0.005" LargeChange="0.02"
+                                            ToolTip="Larger inset keeps each yellow box inside the sticker, off the plastic gaps."/>
+                                    <TextBlock Grid.Column="2" Text="{Binding FaceSampleInset, StringFormat=F2}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                </Grid>
+
+                                <CheckBox Content="Rotate photos 180°" IsChecked="{Binding Settings.RotatePhotos180}" Margin="0,0,0,8"/>
+                                <CheckBox Content="Auto-find face during scans" IsChecked="{Binding FaceAutoDetect}" Margin="0,0,0,12"
+                                          ToolTip="Leave off so scans use this grid. Auto-find can lock onto grippers or the wrong square."/>
+
+                                <WrapPanel>
+                                    <Button Content="Hug cube" Command="{Binding HugForScanGridCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                                    <Button Content="Reset grid" Command="{Binding ResetScanGridCommand}" Background="{StaticResource PanelAltBrush}"/>
+                                    <Button Content="Keep these settings" Command="{Binding SaveScanGridCommand}" Background="{StaticResource AccentBrush}" Margin="0"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="Calibration">
                 <ScrollViewer Margin="0,10,0,0">
                     <StackPanel>
@@ -136,7 +233,7 @@
                                     <TextBlock Text="Video settle ms" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.VideoDurationMs}" Width="80" Margin="0,0,16,0"/>
                                     <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"/>
-                                    <TextBox Text="{Binding Settings.FaceMargin}" Width="80" Margin="0,0,16,0"/>
+                                    <TextBox Text="{Binding FaceMargin}" Width="80" Margin="0,0,16,0"/>
                                     <TextBlock Text="Settle ms" Width="80" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.SettleMs}" Width="80" Margin="0,0,16,0"/>
                                     <TextBlock Text="Tumble squeeze" Width="110" VerticalAlignment="Center"/>
