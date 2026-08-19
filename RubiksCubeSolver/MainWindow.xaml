@@ -244,6 +244,9 @@
                                     <TextBlock Text="Turn grip squeeze" Width="110" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.TurnGripSqueezeUs}" Width="60" Margin="0,0,16,0"
                                              ToolTip="Lighter grip for 90° turns (lower = less stall). Try 60–100."/>
+                                    <TextBlock Text="Hug TB backoff µs" Width="120" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.HugTopBottomBackoffUs}" Width="60" Margin="0,0,16,0"
+                                             ToolTip="Top/bottom stop this far short of In during hug (150 default). Increase if top/bottom stall or get hot."/>
                                     <TextBlock Text="Turn speed cap" Width="100" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.TurnSpeedCap}" Width="50" Margin="0,0,16,0"
                                              ToolTip="Max turner speed during dual tumbles (lower = gentler). 0 = use calibration."/>
