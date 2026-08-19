@@ -340,14 +340,22 @@ public sealed class RobotController : IDisposable
             var invert = _settings.InvertPitch ^ opposite;
             if (PairNearStart(_settings.LeftTurner, _settings.RightTurner) != true)
             {
-                OnCommand?.Invoke("Pitch 90° blocked — left/right turners are not at Start");
-                return;
+                OnCommand?.Invoke("Pitch turners not at Start — will home before 90°");
             }
 
             var (targetLeft, targetRight) = PairPitchTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
-            var mag = Math.Abs(targetLeft - _settings.LeftTurner.StartUs);
+            var travelLeft = Math.Abs(targetLeft - _settings.LeftTurner.StartUs);
+            var travelRight = Math.Abs(targetRight - _settings.RightTurner.StartUs);
             OnCommand?.Invoke(
-                $"Pitch targets L {_settings.LeftTurner.StartUs:F0}→{targetLeft:F0}, R {_settings.RightTurner.StartUs:F0}→{targetRight:F0} (±{mag:F0} µs)");
+                $"Pitch targets Ch{_settings.LeftTurner.Port} {_settings.LeftTurner.StartUs:F0}→{targetLeft:F0} ({travelLeft:F0} µs), " +
+                $"Ch{_settings.RightTurner.Port} {_settings.RightTurner.StartUs:F0}→{targetRight:F0} ({travelRight:F0} µs), " +
+                $"opposite ends L {_settings.LeftTurner.EffectiveOppositeUs():F0} R {_settings.RightTurner.EffectiveOppositeUs():F0}");
+
+            if (Math.Abs(travelLeft - travelRight) > 25)
+            {
+                OnCommand?.Invoke("Pitch 90° blocked — left/right travel mismatch");
+                return;
+            }
 
             if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetLeft, targetRight))
             {
@@ -494,18 +502,41 @@ public sealed class RobotController : IDisposable
 
     async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true, bool pitchMatchedOpposite = false, bool yawMatchedOpposite = false)
     {
-        // Dual tumbles always command from calibrated Start so both grippers travel the same µs.
-        // Using live positions let one servo keep a longer leftover path (e.g. 1770 vs 290).
+        if (pitchMatchedOpposite || yawMatchedOpposite)
+        {
+            if (PairNearStart(a, b) != true)
+            {
+                OnCommand?.Invoke($"Ch{a.Port}/Ch{b.Port} not at Start — homing before dual tumble");
+                await ReversePairToStartAsync(a, b, cancellationToken);
+                if (PairNearStart(a, b) != true)
+                {
+                    OnCommand?.Invoke("Dual tumble blocked — turners could not reach Start");
+                    return;
+                }
+            }
+        }
+
         var fromA = a.StartUs;
         var fromB = b.StartUs;
         var (targetA, targetB) = pitchMatchedOpposite
             ? PairPitchTumbleTargets(a, b, invertDirection, extraUs)
             : yawMatchedOpposite
-                ? PairYawTumbleTargets(a, b, invertDirection, extraUs)
+                ? PairDualTumbleTargets(a, b, invertDirection, extraUs)
                 : PairTumbleTargets(a, b, invertDirection, extraUs, mirrorPair);
 
         var travelA = Math.Abs(targetA - fromA);
         var travelB = Math.Abs(targetB - fromB);
+
+        if (pitchMatchedOpposite || yawMatchedOpposite)
+        {
+            OnCommand?.Invoke(
+                $"Ch{a.Port} {fromA:F0}→{targetA:F0} ({travelA:F0} µs), Ch{b.Port} {fromB:F0}→{targetB:F0} ({travelB:F0} µs)");
+            if (Math.Abs(travelA - travelB) > 25)
+            {
+                OnCommand?.Invoke($"Pair travel mismatch — blocking spin (Ch{a.Port} {travelA:F0} vs Ch{b.Port} {travelB:F0})");
+                return;
+            }
+        }
 
         MatchPairSpeeds(a, b, fromA, fromB, targetA, targetB);
         SetGripperTarget(a, targetA);
@@ -667,66 +698,120 @@ public sealed class RobotController : IDisposable
         }
     }
 
-    (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0, bool mirrorPair = true)
+    (double TargetLeft, double TargetRight) PairPitchTumbleTargets(
+        GripperCalibration left, GripperCalibration right, bool invertDirection, int extraUs = 0)
     {
-        var mag = ComputeTumbleMagnitude(a, b, extraUs);
+        // Left sets the tumble direction; Right always moves the opposite pulse way by the same µs.
+        var leftDir = Math.Sign(left.EndUs - left.StartUs);
+        if (leftDir == 0) leftDir = 1;
+        if (invertDirection) leftDir = -leftDir;
+        var rightDir = -leftDir;
 
-        var signA = Math.Sign(a.EndUs - a.StartUs);
-        var signB = Math.Sign(b.EndUs - b.StartUs);
-        if (signA == 0) signA = 1;
-        if (signB == 0) signB = 1;
+        return DualTumbleFromStart(left, right, leftDir, rightDir, extraUs);
+    }
 
-        var dirA = invertDirection ? -signA : signA;
-        var dirB = invertDirection ? -signB : signB;
-        if (mirrorPair)
+    (double TargetA, double TargetB) PairDualTumbleTargets(
+        GripperCalibration gripperA, GripperCalibration gripperB, bool invertDirection, int extraUs = 0)
+    {
+        GripperCalibration turnGripper;
+        GripperCalibration oppositeGripper;
+        if (!invertDirection)
         {
-            dirB = -dirB;
+            turnGripper = gripperA;
+            oppositeGripper = gripperB;
+        }
+        else
+        {
+            turnGripper = gripperB;
+            oppositeGripper = gripperA;
         }
 
-        return EqualOppositePairTargets(a.StartUs, b.StartUs, dirA, dirB, mag);
+        var turnSign = Math.Sign(turnGripper.EndUs - turnGripper.StartUs);
+        if (turnSign == 0) turnSign = 1;
+        var oppositeSign = -turnSign;
+
+        var (targetTurn, targetOpposite) = DualTumbleFromStart(turnGripper, oppositeGripper, turnSign, oppositeSign, extraUs);
+        return !invertDirection ? (targetTurn, targetOpposite) : (targetOpposite, targetTurn);
     }
 
-    (double TargetLeft, double TargetRight) PairPitchTumbleTargets(GripperCalibration left, GripperCalibration right, bool invertDirection, int extraUs = 0)
+    (double TargetA, double TargetB) DualTumbleFromStart(
+        GripperCalibration a, GripperCalibration b, int dirA, int dirB, int extraUs)
     {
-        var mag = ComputeTumbleMagnitude(left, right, extraUs);
-        var leftDir = PitchLeftDirection(left, invertDirection);
-        var rightDir = -leftDir;
-        return EqualOppositePairTargets(left.StartUs, right.StartUs, leftDir, rightDir, mag);
-    }
+        var endA = dirA > 0 ? a.EndUs : a.EffectiveOppositeUs();
+        var endB = dirB > 0 ? b.EndUs : b.EffectiveOppositeUs();
 
-    (double TargetTop, double TargetBottom) PairYawTumbleTargets(GripperCalibration top, GripperCalibration bottom, bool invertDirection, int extraUs = 0)
-    {
-        var mag = ComputeTumbleMagnitude(top, bottom, extraUs);
-        var topDir = PitchLeftDirection(top, invertDirection);
-        var bottomDir = -topDir;
-        return EqualOppositePairTargets(top.StartUs, bottom.StartUs, topDir, bottomDir, mag);
-    }
-
-    (double TargetA, double TargetB) EqualOppositePairTargets(double fromA, double fromB, int dirA, int dirB, double mag)
-    {
-        mag = Math.Min(mag, MaxTravelInDirection(fromA, dirA));
-        mag = Math.Min(mag, MaxTravelInDirection(fromB, dirB));
+        var mag = Math.Min(Math.Abs(endA - a.StartUs), Math.Abs(endB - b.StartUs));
+        mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
         mag = Math.Max(mag, 1);
 
-        var targetA = Math.Clamp(fromA + dirA * mag, ServoMinUs, ServoMaxUs);
-        var targetB = Math.Clamp(fromB + dirB * mag, ServoMinUs, ServoMaxUs);
+        var targetA = a.StartUs + dirA * mag;
+        var targetB = b.StartUs + dirB * mag;
 
-        var actualMag = Math.Min(Math.Abs(targetA - fromA), Math.Abs(targetB - fromB));
+        if (dirA > 0)
+            targetA = Math.Min(targetA, a.EndUs);
+        else if (dirA < 0)
+            targetA = Math.Max(targetA, a.EffectiveOppositeUs());
+
+        if (dirB > 0)
+            targetB = Math.Min(targetB, b.EndUs);
+        else if (dirB < 0)
+            targetB = Math.Max(targetB, b.EffectiveOppositeUs());
+
+        mag = Math.Min(Math.Abs(targetA - a.StartUs), Math.Abs(targetB - b.StartUs));
+        mag = Math.Max(mag, 1);
+        return (a.StartUs + dirA * mag, b.StartUs + dirB * mag);
+    }
+
+    (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0, bool mirrorPair = true)
+    {
+        if (mirrorPair)
+        {
+            return PairDualTumbleTargets(a, b, invertDirection, extraUs);
+        }
+
+        var mag = ComputeTumbleMagnitude(a, b, extraUs);
+        var signA = Math.Sign(a.EndUs - a.StartUs);
+        if (signA == 0) signA = 1;
+        var dirA = invertDirection ? -signA : signA;
+        var dirB = dirA;
+        return EqualOppositePairTargets(a, b, dirA, dirB, mag);
+    }
+
+    (double TargetA, double TargetB) EqualOppositePairTargets(
+        GripperCalibration gripperA, GripperCalibration gripperB, int dirA, int dirB, double mag)
+    {
+        mag = Math.Min(mag, MaxTravelToward(gripperA, dirA));
+        mag = Math.Min(mag, MaxTravelToward(gripperB, dirB));
+        mag = Math.Max(mag, 1);
+
+        var targetA = gripperA.StartUs + dirA * mag;
+        var targetB = gripperB.StartUs + dirB * mag;
+
+        if (dirA > 0)
+            targetA = Math.Min(targetA, gripperA.EndUs);
+        else if (dirA < 0)
+            targetA = Math.Max(targetA, gripperA.EffectiveOppositeUs());
+
+        if (dirB > 0)
+            targetB = Math.Min(targetB, gripperB.EndUs);
+        else if (dirB < 0)
+            targetB = Math.Max(targetB, gripperB.EffectiveOppositeUs());
+
+        var actualMag = Math.Min(Math.Abs(targetA - gripperA.StartUs), Math.Abs(targetB - gripperB.StartUs));
         actualMag = Math.Max(actualMag, 1);
-        targetA = Math.Clamp(fromA + dirA * actualMag, ServoMinUs, ServoMaxUs);
-        targetB = Math.Clamp(fromB + dirB * actualMag, ServoMinUs, ServoMaxUs);
+        targetA = gripperA.StartUs + dirA * actualMag;
+        targetB = gripperB.StartUs + dirB * actualMag;
         return (targetA, targetB);
     }
 
-    static int PitchLeftDirection(GripperCalibration gripper, bool invertDirection)
+    static double MaxTravelToward(GripperCalibration gripper, int direction)
     {
-        var sign = Math.Sign(gripper.EndUs - gripper.StartUs);
-        if (sign == 0) sign = 1;
-        return invertDirection ? -sign : sign;
+        if (direction > 0)
+            return Math.Max(0, gripper.EndUs - gripper.StartUs);
+        if (direction < 0)
+            return Math.Max(0, gripper.StartUs - gripper.EffectiveOppositeUs());
+        return 0;
     }
-
-    static double MaxTravelInDirection(double from, int direction) =>
-        direction >= 0 ? ServoMaxUs - from : from - ServoMinUs;
 
     double ComputeTumbleMagnitude(GripperCalibration a, GripperCalibration b, int extraUs)
     {
