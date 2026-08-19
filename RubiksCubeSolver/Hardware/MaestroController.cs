@@ -72,14 +72,14 @@ public sealed class MaestroController : IDisposable
         Write(SetAccelerationCommand, channel, acceleration);
     }
 
-    public void SetTargetMicroseconds(byte channel, int microseconds)
+    public void SetTargetMicroseconds(byte channel, double microseconds)
     {
         if (microseconds < 0)
         {
             microseconds = 0;
         }
 
-        var quarters = (ushort)(microseconds * 4);
+        var quarters = (ushort)Math.Clamp(Math.Round(microseconds * 4), 0, 65535);
         Write(SetTargetCommand, channel, quarters);
     }
 

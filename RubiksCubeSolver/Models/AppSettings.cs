@@ -5,8 +5,8 @@ namespace RubiksCubeSolver.Models;
 public sealed class GripperCalibration
 {
     public byte Port { get; set; }
-    public int StartUs { get; set; }
-    public int EndUs { get; set; }
+    public double StartUs { get; set; }
+    public double EndUs { get; set; }
     public ushort Speed { get; set; } = 40;
     public ushort Acceleration { get; set; } = 110;
 }
@@ -14,14 +14,16 @@ public sealed class GripperCalibration
 public sealed class ArmCalibration
 {
     public byte Port { get; set; }
-    public int InUs { get; set; }
-    public int OutUs { get; set; }
+    public double InUs { get; set; }
+    public double OutUs { get; set; }
     public ushort Speed { get; set; } = 50;
     public ushort Acceleration { get; set; } = 80;
 }
 
 public sealed class AppSettings
 {
+    public const int CurrentCalibrationVersion = 2;
+
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
     public string? CameraName { get; set; }
@@ -33,15 +35,16 @@ public sealed class AppSettings
     public bool TestMode { get; set; }
     public int SettleMs { get; set; } = 120;
     public int MovementTimeoutMs { get; set; } = 4000;
+    public int CalibrationVersion { get; set; }
 
-    public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 998, EndUs = 1700 };
-    public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1850, OutUs = 992 };
-    public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 998, EndUs = 1700 };
-    public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 2000, OutUs = 992 };
-    public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1040, EndUs = 1700 };
-    public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1800, OutUs = 992 };
-    public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1110, EndUs = 1774 };
-    public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1700, OutUs = 1040 };
+    public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700 };
+    public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1285.25, OutUs = 992 };
+    public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 992, EndUs = 1700 };
+    public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 904.25, OutUs = 992 };
+    public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700 };
+    public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 992 };
+    public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1079.50, EndUs = 1774 };
+    public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1408, OutUs = 1040 };
 
     public static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -49,20 +52,52 @@ public sealed class AppSettings
 
     public static AppSettings Load()
     {
+        AppSettings settings;
         try
         {
             if (File.Exists(FilePath))
             {
                 var json = File.ReadAllText(FilePath);
-                return System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                settings = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            }
+            else
+            {
+                settings = new AppSettings();
             }
         }
         catch
         {
-            // Fall through to defaults from the user's Maestro calibration.
+            settings = new AppSettings();
         }
 
-        return new AppSettings();
+        if (settings.CalibrationVersion < CurrentCalibrationVersion)
+        {
+            settings.ApplyCenteredHome();
+            settings.CalibrationVersion = CurrentCalibrationVersion;
+            settings.Save();
+        }
+
+        return settings;
+    }
+
+    public void ApplyCenteredHome()
+    {
+        RightTurner.Port = 0;
+        RightTurner.StartUs = 1036;
+        RightArm.Port = 1;
+        RightArm.InUs = 1285.25;
+        TopTurner.Port = 2;
+        TopTurner.StartUs = 992;
+        TopArm.Port = 3;
+        TopArm.InUs = 904.25;
+        LeftTurner.Port = 6;
+        LeftTurner.StartUs = 1026.25;
+        LeftArm.Port = 7;
+        LeftArm.InUs = 1597.75;
+        BottomTurner.Port = 8;
+        BottomTurner.StartUs = 1079.50;
+        BottomArm.Port = 9;
+        BottomArm.InUs = 1408;
     }
 
     public void Save()
