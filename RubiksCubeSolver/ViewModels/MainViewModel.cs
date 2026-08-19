@@ -1031,6 +1031,8 @@ public partial class MainViewModel : ObservableObject
 
         AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch phase)");
         await _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
+        AppendLog("RETURN: yaw turners home at FRONT before pitch");
+        await _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
         LogState("back at FRONT for pitch");
 
         AppendLog("TOP: RL secure, TB clear, pitch up");

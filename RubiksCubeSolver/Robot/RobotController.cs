@@ -541,13 +541,22 @@ public sealed class RobotController : IDisposable
             await HoldYawTurnersStillAsync(ct);
         }, cancellationToken);
 
+    public Task ScanYawTurnersHomeAtFrontAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL secure, TB clear, yaw home at FRONT", ScanYawTurnersHomeKeepFaceCoreAsync, cancellationToken);
+
     public Task ScanPitchTurnersHomeTbHoldingAsync(CancellationToken cancellationToken, bool resetCubeOrientation = false) =>
-        CommandAsync(resetCubeOrientation ? "TB_IN secure, RL_OUT, pitch home → FRONT" : "TB_IN secure, RL_OUT, pitch home",
+        CommandAsync(resetCubeOrientation ? "RL secure, TB clear, yaw home, TB secure, pitch home → FRONT" : "RL secure, TB clear, yaw home, TB secure, pitch home",
             ct => ScanPitchTurnersHomeTbHoldingCoreAsync(ct, resetCubeOrientation), cancellationToken);
 
     async Task ScanPitchTurnersHomeTbHoldingCoreAsync(CancellationToken cancellationToken, bool resetCubeOrientation)
     {
         await HoldPitchTurnersStillAsync(cancellationToken);
+        await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        await TopBottomOutAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+        await YawTurnersToStartAsync(cancellationToken);
         await HoldYawTurnersStillAsync(cancellationToken);
         await TopBottomInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
         await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
