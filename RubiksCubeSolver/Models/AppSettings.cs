@@ -9,6 +9,18 @@ public sealed class GripperCalibration
     public double EndUs { get; set; }
     public ushort Speed { get; set; } = 40;
     public ushort Acceleration { get; set; } = 110;
+
+    /// <summary>
+    /// 90° in the opposite servo direction from End. Opposite mounts need this so a pitch/yaw rolls the cube instead of twisting the middle.
+    /// </summary>
+    public double OppositeEndUs
+    {
+        get
+        {
+            var target = StartUs - (EndUs - StartUs);
+            return Math.Clamp(target, 500, 2500);
+        }
+    }
 }
 
 public sealed class ArmCalibration

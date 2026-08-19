@@ -146,7 +146,7 @@ public sealed class RobotController : IDisposable
     public async Task PitchAsync(CancellationToken cancellationToken)
     {
         await HoldLeftRightAsync(cancellationToken);
-        TurnGrippers(_settings.LeftTurner, _settings.RightTurner, turned: true);
+        TurnGripperPair(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch);
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
@@ -162,7 +162,7 @@ public sealed class RobotController : IDisposable
     public async Task YawAsync(CancellationToken cancellationToken)
     {
         await HoldTopBottomAsync(cancellationToken);
-        TurnGrippers(_settings.TopTurner, _settings.BottomTurner, turned: true);
+        TurnGripperPair(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw);
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
@@ -263,7 +263,6 @@ public sealed class RobotController : IDisposable
 
     async Task HoldLeftRightAsync(CancellationToken cancellationToken)
     {
-        NeutralGrippers();
         SetArm(_settings.LeftArm, true);
         SetArm(_settings.RightArm, true);
         SetArm(_settings.TopArm, false);
@@ -273,7 +272,6 @@ public sealed class RobotController : IDisposable
 
     async Task HoldTopBottomAsync(CancellationToken cancellationToken)
     {
-        NeutralGrippers();
         SetArm(_settings.TopArm, true);
         SetArm(_settings.BottomArm, true);
         SetArm(_settings.LeftArm, false);
@@ -303,15 +301,28 @@ public sealed class RobotController : IDisposable
 
     void NeutralGripper(GripperCalibration gripper) => SetGripper(gripper, turned: false);
 
-    void TurnGrippers(GripperCalibration a, GripperCalibration b, bool turned)
+    void TurnGripperPair(GripperCalibration a, GripperCalibration b, bool invertDirection)
     {
-        SetGripper(a, turned);
-        SetGripper(b, turned);
+        if (invertDirection)
+        {
+            SetGripperTarget(a, a.OppositeEndUs);
+            SetGripperTarget(b, b.EndUs);
+        }
+        else
+        {
+            SetGripperTarget(a, a.EndUs);
+            SetGripperTarget(b, b.OppositeEndUs);
+        }
     }
 
     void SetGripper(GripperCalibration gripper, bool turned)
     {
-        _maestro.SetTargetMicroseconds(gripper.Port, turned ? gripper.EndUs : gripper.StartUs);
+        SetGripperTarget(gripper, turned ? gripper.EndUs : gripper.StartUs);
+    }
+
+    void SetGripperTarget(GripperCalibration gripper, double microseconds)
+    {
+        _maestro.SetTargetMicroseconds(gripper.Port, microseconds);
     }
 
     void AllArmsIn()

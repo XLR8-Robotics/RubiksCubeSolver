@@ -127,8 +127,10 @@
                                 <WrapPanel>
                                     <CheckBox Content="Test mode (no hardware)" IsChecked="{Binding TestMode}" Margin="0,0,16,8"/>
                                     <CheckBox Content="Rotate photos 180°" IsChecked="{Binding Settings.RotatePhotos180}" Margin="0,0,16,8"/>
-                                    <CheckBox Content="Invert pitch (L/R tumble)" IsChecked="{Binding Settings.InvertPitch}" Margin="0,0,16,8"/>
-                                    <CheckBox Content="Invert yaw (U/D tumble)" IsChecked="{Binding Settings.InvertYaw}" Margin="0,0,16,8"/>
+                                    <CheckBox Content="Invert pitch (L/R tumble)" IsChecked="{Binding Settings.InvertPitch}" Margin="0,0,16,8"
+                                              ToolTip="Reverse the left/right roll direction if the cube tumbles the wrong way during scan."/>
+                                    <CheckBox Content="Invert yaw (U/D tumble)" IsChecked="{Binding Settings.InvertYaw}" Margin="0,0,16,8"
+                                              ToolTip="Reverse the top/bottom roll direction if the cube spins the wrong way during scan."/>
                                 </WrapPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="Video settle ms" Width="120" VerticalAlignment="Center"/>
