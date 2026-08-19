@@ -849,19 +849,23 @@ public sealed class RobotController : IDisposable
     {
         var fromA = _maestro.GetPositionMicroseconds(a.Port) ?? a.StartUs;
         var fromB = _maestro.GetPositionMicroseconds(b.Port) ?? b.StartUs;
-        var (startTargetA, startTargetB) = PairDualTumbleTargets(a, b, invertDirection, 0);
-        var deltaA = startTargetA - a.StartUs;
-        var deltaB = startTargetB - b.StartUs;
-        var targetA = fromA + deltaA;
-        var targetB = fromB + deltaB;
-        var travelA = Math.Abs(deltaA);
-        var travelB = Math.Abs(deltaB);
+        var (targetA, targetB) = PairNearStart(a, b) == true
+            ? PairDualTumbleTargets(a, b, invertDirection, 0)
+            : (a.StartUs, b.StartUs);
+        var travelA = Math.Abs(targetA - fromA);
+        var travelB = Math.Abs(targetB - fromB);
 
         OnCommand?.Invoke(
             $"Ch{a.Port} {fromA:F0}→{targetA:F0} ({travelA:F0} µs), Ch{b.Port} {fromB:F0}→{targetB:F0} ({travelB:F0} µs) [chained]");
         if (Math.Abs(travelA - travelB) > 25)
         {
             OnCommand?.Invoke($"Chained yaw blocked — travel mismatch (Ch{a.Port} {travelA:F0} vs Ch{b.Port} {travelB:F0})");
+            return;
+        }
+
+        if (!PairTargetsInRange(a, b, targetA, targetB))
+        {
+            OnCommand?.Invoke($"Chained yaw blocked — target out of servo range (Ch{a.Port} {targetA:F0}, Ch{b.Port} {targetB:F0})");
             return;
         }
 
@@ -873,7 +877,7 @@ public sealed class RobotController : IDisposable
         ConfigureGripper(b);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
-        MarkPairHomed(a, b, homed: false);
+        MarkPairHomed(a, b, homed: PairNearStart(a, b) == true);
     }
 
     async Task SpinPairPitchFromCurrentAsync(
@@ -881,19 +885,23 @@ public sealed class RobotController : IDisposable
     {
         var fromLeft = _maestro.GetPositionMicroseconds(left.Port) ?? left.StartUs;
         var fromRight = _maestro.GetPositionMicroseconds(right.Port) ?? right.StartUs;
-        var (startTargetLeft, startTargetRight) = PairPitchTumbleTargets(left, right, invertDirection, extraUs);
-        var deltaLeft = startTargetLeft - left.StartUs;
-        var deltaRight = startTargetRight - right.StartUs;
-        var targetLeft = fromLeft + deltaLeft;
-        var targetRight = fromRight + deltaRight;
-        var travelLeft = Math.Abs(deltaLeft);
-        var travelRight = Math.Abs(deltaRight);
+        var (targetLeft, targetRight) = PairNearStart(left, right) == true
+            ? PairPitchTumbleTargets(left, right, invertDirection, extraUs)
+            : (left.StartUs, right.StartUs);
+        var travelLeft = Math.Abs(targetLeft - fromLeft);
+        var travelRight = Math.Abs(targetRight - fromRight);
 
         OnCommand?.Invoke(
             $"Ch{left.Port} {fromLeft:F0}→{targetLeft:F0} ({travelLeft:F0} µs), Ch{right.Port} {fromRight:F0}→{targetRight:F0} ({travelRight:F0} µs) [chained pitch]");
         if (Math.Abs(travelLeft - travelRight) > 25)
         {
             OnCommand?.Invoke($"Chained pitch blocked — travel mismatch (Ch{left.Port} {travelLeft:F0} vs Ch{right.Port} {travelRight:F0})");
+            return;
+        }
+
+        if (!PairTargetsInRange(left, right, targetLeft, targetRight))
+        {
+            OnCommand?.Invoke($"Chained pitch blocked — target out of servo range (Ch{left.Port} {targetLeft:F0}, Ch{right.Port} {targetRight:F0})");
             return;
         }
 
@@ -905,7 +913,7 @@ public sealed class RobotController : IDisposable
         ConfigureGripper(right);
         SetGripperTarget(left, targetLeft);
         SetGripperTarget(right, targetRight);
-        MarkPairHomed(left, right, homed: false);
+        MarkPairHomed(left, right, homed: PairNearStart(left, right) == true);
     }
 
     async Task FreezePairAtCurrentAsync(GripperCalibration a, GripperCalibration b, CancellationToken cancellationToken)
@@ -1041,6 +1049,10 @@ public sealed class RobotController : IDisposable
         return Math.Abs(posA.Value - a.StartUs) <= toleranceUs
                && Math.Abs(posB.Value - b.StartUs) <= toleranceUs;
     }
+
+    static bool PairTargetsInRange(GripperCalibration a, GripperCalibration b, double targetA, double targetB) =>
+        targetA >= ServoMinUs && targetA <= ServoMaxUs
+        && targetB >= ServoMinUs && targetB <= ServoMaxUs;
 
     void MarkPairHomed(GripperCalibration a, GripperCalibration b, bool homed)
     {
