@@ -7,9 +7,15 @@ public sealed class GripperCalibration
     public byte Port { get; set; }
     public double StartUs { get; set; }
     public double EndUs { get; set; }
-    public double OppositeEndUs { get; set; } = 2496;
+    public double OppositeEndUs { get; set; } = 496;
     public ushort Speed { get; set; } = 40;
     public ushort Acceleration { get; set; } = 110;
+
+    public double MirroredEndUs()
+    {
+        var target = StartUs - (EndUs - StartUs);
+        return Math.Clamp(target, 496, 2496);
+    }
 }
 
 public sealed class ArmCalibration
@@ -23,7 +29,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 7;
+    public const int CurrentCalibrationVersion = 8;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -40,13 +46,13 @@ public sealed class AppSettings
     public int MovementTimeoutMs { get; set; } = 4000;
     public int CalibrationVersion { get; set; }
 
-    public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700, OppositeEndUs = 2496 };
+    public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700, OppositeEndUs = 496 };
     public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1446, OutUs = 2496 };
-    public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 992, EndUs = 1700, OppositeEndUs = 2496 };
+    public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 992, EndUs = 1700, OppositeEndUs = 496 };
     public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 963, OutUs = 2233 };
-    public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700, OppositeEndUs = 2496 };
+    public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700, OppositeEndUs = 496 };
     public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 2496 };
-    public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1079.50, EndUs = 1774, OppositeEndUs = 2496 };
+    public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1079.50, EndUs = 1774, OppositeEndUs = 496 };
     public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1408, OutUs = 2496 };
 
     public static string FilePath =>
@@ -100,9 +106,9 @@ public sealed class AppSettings
                 settings.ApplyTumbleOtherWay();
             }
 
-            if (settings.CalibrationVersion < 7)
+            if (settings.CalibrationVersion < 8)
             {
-                settings.ApplyTumbleOtherWay();
+                settings.ApplyMatchedOppositeEnds();
             }
 
             settings.CalibrationVersion = CurrentCalibrationVersion;
@@ -116,25 +122,25 @@ public sealed class AppSettings
     {
         RightTurner.Port = 0;
         RightTurner.StartUs = 1036;
-        RightTurner.OppositeEndUs = 2496;
+        RightTurner.OppositeEndUs = 496;
         RightArm.Port = 1;
         RightArm.InUs = 1446;
         RightArm.OutUs = 2496;
         TopTurner.Port = 2;
         TopTurner.StartUs = 992;
-        TopTurner.OppositeEndUs = 2496;
+        TopTurner.OppositeEndUs = 496;
         TopArm.Port = 3;
         TopArm.InUs = 963;
         TopArm.OutUs = 2233;
         LeftTurner.Port = 6;
         LeftTurner.StartUs = 1026.25;
-        LeftTurner.OppositeEndUs = 2496;
+        LeftTurner.OppositeEndUs = 496;
         LeftArm.Port = 7;
         LeftArm.InUs = 1597.75;
         LeftArm.OutUs = 2496;
         BottomTurner.Port = 8;
         BottomTurner.StartUs = 1079.50;
-        BottomTurner.OppositeEndUs = 2496;
+        BottomTurner.OppositeEndUs = 496;
         BottomArm.Port = 9;
         BottomArm.InUs = 1408;
         BottomArm.OutUs = 2496;
@@ -162,12 +168,14 @@ public sealed class AppSettings
         BottomArm.OutUs = 2496;
     }
 
-    public void ApplyTumbleOtherWay()
+    public void ApplyTumbleOtherWay() => ApplyMatchedOppositeEnds();
+
+    public void ApplyMatchedOppositeEnds()
     {
-        RightTurner.OppositeEndUs = 2496;
-        TopTurner.OppositeEndUs = 2496;
-        LeftTurner.OppositeEndUs = 2496;
-        BottomTurner.OppositeEndUs = 2496;
+        RightTurner.OppositeEndUs = RightTurner.MirroredEndUs();
+        TopTurner.OppositeEndUs = TopTurner.MirroredEndUs();
+        LeftTurner.OppositeEndUs = LeftTurner.MirroredEndUs();
+        BottomTurner.OppositeEndUs = BottomTurner.MirroredEndUs();
     }
 
     public void Save()

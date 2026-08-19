@@ -185,6 +185,17 @@ public static class FaceScanner
         }
     }
 
+    public static Scalar[] AverageSamples(Scalar[] first, Scalar[] second)
+    {
+        var merged = new Scalar[9];
+        for (int i = 0; i < 9; i++)
+        {
+            merged[i] = Average(first[i], second[i]);
+        }
+
+        return merged;
+    }
+
     public static Scalar[] MergeDualHold(Scalar[] topBottomHold, Scalar[] leftRightHold)
     {
         var merged = new Scalar[9];

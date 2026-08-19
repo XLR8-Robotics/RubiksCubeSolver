@@ -277,10 +277,83 @@ public sealed class RobotController : IDisposable
     public Task HoldLeftRightScanAsync(CancellationToken cancellationToken) =>
         HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: false);
 
+    public async Task YawScanAsync(CancellationToken cancellationToken, bool opposite = false)
+    {
+        var invert = _settings.InvertYaw ^ opposite;
+        await HoldTopBottomScanAsync(cancellationToken);
+        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken);
+        Orientation.Yaw(invert);
+    }
+
+    public async Task ResetYawTurnersForScanAsync(CancellationToken cancellationToken)
+    {
+        SetArm(_settings.LeftArm, inside: true);
+        SetArm(_settings.RightArm, inside: true);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.TopArm, inside: false);
+        SetArm(_settings.BottomArm, inside: false);
+        await WaitAsync(cancellationToken);
+        NeutralGripper(_settings.TopTurner);
+        NeutralGripper(_settings.BottomTurner);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.TopArm, inside: true);
+        SetArm(_settings.BottomArm, inside: true);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.LeftArm, inside: false);
+        SetArm(_settings.RightArm, inside: false);
+        await WaitAsync(cancellationToken);
+    }
+
+    public async Task HandoffToLeftRightParkTopBottomAsync(CancellationToken cancellationToken)
+    {
+        SetArm(_settings.LeftArm, inside: true);
+        SetArm(_settings.RightArm, inside: true);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.TopArm, inside: false);
+        SetArm(_settings.BottomArm, inside: false);
+        await WaitAsync(cancellationToken);
+        NeutralGripper(_settings.TopTurner);
+        NeutralGripper(_settings.BottomTurner);
+        await WaitAsync(cancellationToken);
+    }
+
+    public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
+    {
+        var invert = _settings.InvertPitch ^ opposite;
+        await HoldLeftRightScanAsync(cancellationToken);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken);
+        Orientation.Pitch(invert);
+    }
+
+    public async Task ResetPitchTurnersForScanAsync(CancellationToken cancellationToken)
+    {
+        SetArm(_settings.TopArm, inside: true);
+        SetArm(_settings.BottomArm, inside: true);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.LeftArm, inside: false);
+        SetArm(_settings.RightArm, inside: false);
+        await WaitAsync(cancellationToken);
+        NeutralGripper(_settings.LeftTurner);
+        NeutralGripper(_settings.RightTurner);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.LeftArm, inside: true);
+        SetArm(_settings.RightArm, inside: true);
+        await WaitAsync(cancellationToken);
+        SetArm(_settings.TopArm, inside: false);
+        SetArm(_settings.BottomArm, inside: false);
+        await WaitAsync(cancellationToken);
+    }
+
+    public async Task FinishScanHugAsync(CancellationToken cancellationToken)
+    {
+        NeutralGrippers();
+        AllArmsIn();
+        await WaitAsync(cancellationToken);
+    }
+
     async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken)
     {
-        var targetA = invertDirection ? a.OppositeEndUs : a.EndUs;
-        var targetB = invertDirection ? b.EndUs : b.OppositeEndUs;
+        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection);
         MatchPairSpeeds(a, b, targetA, targetB);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
@@ -288,6 +361,25 @@ public sealed class RobotController : IDisposable
         ConfigureGripper(a);
         ConfigureGripper(b);
     }
+
+    static (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection)
+    {
+        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
+        mag = Math.Min(mag, Headroom(a.StartUs));
+        mag = Math.Min(mag, Headroom(b.StartUs));
+        mag = Math.Max(mag, 1);
+
+        var signA = Math.Sign(a.EndUs - a.StartUs);
+        var signB = Math.Sign(b.EndUs - b.StartUs);
+        if (signA == 0) signA = 1;
+        if (signB == 0) signB = 1;
+
+        var targetA = a.StartUs + (invertDirection ? -signA : signA) * mag;
+        var targetB = b.StartUs + (invertDirection ? signB : -signB) * mag;
+        return (Math.Clamp(targetA, 496, 2496), Math.Clamp(targetB, 496, 2496));
+    }
+
+    static double Headroom(double startUs) => Math.Min(startUs - 496, 2496 - startUs);
 
     void MatchPairSpeeds(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
     {

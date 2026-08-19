@@ -679,55 +679,77 @@ public partial class MainViewModel : ObservableObject
     async Task<List<Scalar[]>> ScanAllFacesAsync(CancellationToken cancellationToken)
     {
         var map = new Dictionary<CubeFace, Scalar[]>();
+        AppendLog("Scan: F merge, yaw R then L, B merge, park top/bottom, pitch U then D, hug at F.");
 
-        async Task Capture(CubeFace homeFace, int rotateCcw)
+        async Task<Scalar[]> GrabFaceAsync(int settleMs)
+        {
+            using var frame = await _webcam.GrabSettledAsync(settleMs, Settings.RotatePhotos180, cancellationToken)
+                              ?? throw new InvalidOperationException("Camera frame was empty.");
+            var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
+            ShowFrame(sampled.Preview);
+            var samples = sampled.Samples;
+            sampled.Preview.Dispose();
+            return samples;
+        }
+
+        async Task CaptureMergedFaceAsync(CubeFace face)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            StatusText = $"Photographing {face}";
+            AppendLog($"Photographing {face}: top/bottom away, then left/right away, merge.");
+
+            await _robot!.HoldLeftRightScanAsync(cancellationToken);
+            var leftRight = await GrabFaceAsync(Settings.VideoDurationMs);
+            await _robot.HoldTopBottomScanAsync(cancellationToken);
+            var topBottom = await GrabFaceAsync(250);
+            var samples = FaceScanner.MergeDualHold(topBottom, leftRight);
+            map[face] = samples;
+            ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray());
+        }
+
+        async Task CaptureOpenAsync(CubeFace homeFace)
         {
             cancellationToken.ThrowIfCancellationRequested();
             StatusText = $"Photographing {homeFace}";
-            AppendLog($"Photographing {homeFace} (top/bottom hold, then left/right hold, merge)...");
-
-            await _robot!.HoldTopBottomScanAsync(cancellationToken);
-            Scalar[] topBottom;
-            using (var frame = await _webcam.GrabSettledAsync(Settings.VideoDurationMs, Settings.RotatePhotos180, cancellationToken)
-                               ?? throw new InvalidOperationException("Camera frame was empty."))
-            {
-                var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
-                ShowFrame(sampled.Preview);
-                topBottom = sampled.Samples;
-                sampled.Preview.Dispose();
-            }
-
-            await _robot.HoldLeftRightScanAsync(cancellationToken);
-            Scalar[] leftRight;
-            using (var frame = await _webcam.GrabSettledAsync(250, Settings.RotatePhotos180, cancellationToken)
-                               ?? throw new InvalidOperationException("Camera frame was empty."))
-            {
-                var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
-                ShowFrame(sampled.Preview);
-                leftRight = sampled.Samples;
-                sampled.Preview.Dispose();
-            }
-
-            var samples = FaceScanner.RotateSamples(FaceScanner.MergeDualHold(topBottom, leftRight), rotateCcw);
+            AppendLog($"Photographing {homeFace} (two frames, sides clear)...");
+            var first = await GrabFaceAsync(Settings.VideoDurationMs);
+            var second = await GrabFaceAsync(250);
+            var samples = FaceScanner.AverageSamples(first, second);
             map[homeFace] = samples;
-            var guessed = samples.Select(ColorClassifier.Guess).ToArray();
-            ApplyFace(homeFace, guessed);
+            ApplyFace(homeFace, samples.Select(ColorClassifier.Guess).ToArray());
         }
 
-        await Capture(CubeFace.F, 0);
-        await _robot!.YawAsync(cancellationToken, opposite: true);
-        await Capture(CubeFace.L, 0);
-        await _robot.YawAsync(cancellationToken, opposite: true);
-        await Capture(CubeFace.B, 0);
-        await _robot.YawAsync(cancellationToken, opposite: true);
-        await Capture(CubeFace.R, 0);
-        await _robot.YawAsync(cancellationToken, opposite: true);
-        await _robot.PitchAsync(cancellationToken);
-        await Capture(CubeFace.U, 0);
-        await _robot.PitchAsync(cancellationToken, opposite: true);
-        await _robot.PitchAsync(cancellationToken, opposite: true);
-        await Capture(CubeFace.D, 0);
-        await _robot.PitchAsync(cancellationToken);
+        await CaptureMergedFaceAsync(CubeFace.F);
+
+        await _robot!.YawScanAsync(cancellationToken);
+        await CaptureOpenAsync(_robot.Orientation.Front);
+
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
+        await _robot.YawScanAsync(cancellationToken, opposite: true);
+
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
+        await _robot.YawScanAsync(cancellationToken, opposite: true);
+        await CaptureOpenAsync(_robot.Orientation.Front);
+
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
+        await _robot.YawScanAsync(cancellationToken, opposite: true);
+        await CaptureMergedFaceAsync(_robot.Orientation.Front);
+
+        await _robot.HandoffToLeftRightParkTopBottomAsync(cancellationToken);
+
+        await _robot.PitchScanAsync(cancellationToken);
+        await CaptureOpenAsync(_robot.Orientation.Front);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        await _robot.PitchScanAsync(cancellationToken);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        await _robot.PitchScanAsync(cancellationToken);
+        await CaptureOpenAsync(_robot.Orientation.Front);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        await _robot.PitchScanAsync(cancellationToken);
+        await _robot.FinishScanHugAsync(cancellationToken);
 
         return
         [

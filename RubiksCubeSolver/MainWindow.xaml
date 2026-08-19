@@ -119,7 +119,7 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock Text="Servo calibration" FontWeight="SemiBold"/>
-                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms. Other way is the tumble direction (default 2496). In Maestro Control Center set each turner channel min/max to 496–2496 or the board will ignore it." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
+                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms. Dual tumbles move one gripper to Turn end and the other the same distance below Start. In Maestro Control Center set turner min/max to 496–2496 so the downward 90° is not clipped." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock Text="Serial port" Width="120" VerticalAlignment="Center"/>
                                     <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedPort}" DisplayMemberPath="Caption"/>
