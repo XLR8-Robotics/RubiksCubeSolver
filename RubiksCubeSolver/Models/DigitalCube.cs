@@ -66,7 +66,7 @@ public sealed class DigitalCube
         return true;
     }
 
-    public static IReadOnlyList<CubeMove> RandomScramble(int moves = 20)
+    public static IReadOnlyList<CubeMove> RandomScramble(int moves = 20, bool singleQuarterTurns = false)
     {
         var list = new List<CubeMove>(moves);
         var rng = new Random();
@@ -80,7 +80,7 @@ public sealed class DigitalCube
             } while (last is not null && face == last);
 
             last = face;
-            list.Add(new CubeMove(face, rng.Next(1, 4)));
+            list.Add(new CubeMove(face, singleQuarterTurns ? 1 : rng.Next(1, 4)));
         }
 
         return list;

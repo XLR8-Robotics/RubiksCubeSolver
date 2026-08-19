@@ -560,22 +560,38 @@ public partial class MainViewModel : ObservableObject
 
     async Task ExecuteScrambleAsync(CancellationToken cancellationToken)
     {
-        if (!TestMode)
+        if (TestMode)
         {
-            EnsureRobot();
-            AppendLog("Hugging cube to scramble...");
-            await _robot!.HugAsync(cancellationToken);
+            var digital = DigitalCube.RandomScramble(20, singleQuarterTurns: true);
+            SolutionText = "Scramble: " + string.Join(' ', digital);
+            AppendLog(SolutionText);
+            await ExecuteMovesAsync(digital, "Scrambling", cancellationToken, progressStart: 0, progressSpan: 1);
+            AppendLog("Scramble complete.");
+            StatusText = "Scrambled";
+            return;
         }
 
-        var scramble = DigitalCube.RandomScramble(20);
+        EnsureRobot();
+        AppendLog("Hugging cube to scramble...");
+        await _robot!.HugAsync(cancellationToken);
+
+        var steps = _robot.CreateGrippedScramble(20);
+        var scramble = steps.Select(step => step.Move).ToList();
         SolutionText = "Scramble: " + string.Join(' ', scramble);
-        AppendLog(SolutionText);
-        await ExecuteMovesAsync(scramble, "Scrambling", cancellationToken, progressStart: 0, progressSpan: 1);
-        if (!TestMode)
+        AppendLog(SolutionText + " (one 90° gripper turn at a time; no pitch/yaw)");
+
+        for (int i = 0; i < steps.Count; i++)
         {
-            await _robot!.HugAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            Progress = (i + 1) / (double)steps.Count;
+            StatusText = $"Scrambling {scramble[i]} ({i + 1}/{steps.Count})";
+            AppendLog($"Scrambling {i + 1}/{steps.Count}: {scramble[i]}");
+            var robotMove = _robot.QuarterTurnStationOnceAsync(steps[i].Station, cancellationToken);
+            await PlayDigitalMoveAsync(scramble[i], cancellationToken);
+            await robotMove;
         }
 
+        await _robot.HugAsync(cancellationToken);
         AppendLog("Scramble complete.");
         StatusText = "Scrambled";
     }

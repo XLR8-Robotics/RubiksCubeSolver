@@ -180,6 +180,30 @@ public sealed class RobotController : IDisposable
         }
     }
 
+    public IReadOnlyList<(RobotStation Station, CubeMove Move)> CreateGrippedScramble(int moves)
+    {
+        var list = new List<(RobotStation Station, CubeMove Move)>(moves);
+        var rng = new Random();
+        var stations = new[] { RobotStation.Right, RobotStation.Top, RobotStation.Left, RobotStation.Bottom };
+        RobotStation? last = null;
+        for (int i = 0; i < moves; i++)
+        {
+            RobotStation station;
+            do
+            {
+                station = stations[rng.Next(stations.Length)];
+            } while (last is not null && station == last);
+
+            last = station;
+            list.Add((station, new CubeMove(Orientation.FaceAt(station), 1)));
+        }
+
+        return list;
+    }
+
+    public Task QuarterTurnStationOnceAsync(RobotStation station, CancellationToken cancellationToken) =>
+        QuarterTurnStationAsync(station, cancellationToken);
+
     public async Task BringToGripperAsync(CubeFace face, CancellationToken cancellationToken)
     {
         var station = Orientation.StationOf(face);
@@ -207,24 +231,29 @@ public sealed class RobotController : IDisposable
 
     async Task QuarterTurnStationAsync(RobotStation station, CancellationToken cancellationToken)
     {
-        var (turner, arm, oppositeArm, adjA, adjB) = station switch
+        var (turner, arm, oppositeArm, oppositeGripper, adjA, adjB, adjGripA, adjGripB) = station switch
         {
-            RobotStation.Right => (_settings.RightTurner, _settings.RightArm, _settings.LeftArm, _settings.TopArm, _settings.BottomArm),
-            RobotStation.Left => (_settings.LeftTurner, _settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm),
-            RobotStation.Top => (_settings.TopTurner, _settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm),
-            _ => (_settings.BottomTurner, _settings.BottomArm, _settings.TopArm, _settings.LeftArm, _settings.RightArm)
+            RobotStation.Right => (_settings.RightTurner, _settings.RightArm, _settings.LeftArm, _settings.LeftTurner, _settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner),
+            RobotStation.Left => (_settings.LeftTurner, _settings.LeftArm, _settings.RightArm, _settings.RightTurner, _settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner),
+            RobotStation.Top => (_settings.TopTurner, _settings.TopArm, _settings.BottomArm, _settings.BottomTurner, _settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner),
+            _ => (_settings.BottomTurner, _settings.BottomArm, _settings.TopArm, _settings.TopTurner, _settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner)
         };
 
+        NeutralGripper(oppositeGripper);
+        NeutralGripper(adjGripA);
+        NeutralGripper(adjGripB);
+        NeutralGripper(turner);
         SetArm(oppositeArm, inside: true);
         SetArm(adjA, inside: false);
         SetArm(adjB, inside: false);
         SetArm(arm, inside: true);
-        NeutralGripper(turner);
         await WaitAsync(cancellationToken);
 
         SetGripper(turner, turned: true);
         await WaitAsync(cancellationToken);
 
+        NeutralGripper(adjGripA);
+        NeutralGripper(adjGripB);
         SetArm(adjA, inside: true);
         SetArm(adjB, inside: true);
         await WaitAsync(cancellationToken);
