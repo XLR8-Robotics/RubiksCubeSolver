@@ -150,10 +150,7 @@ public sealed class RobotController : IDisposable
         await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
         AllArmsIn();
         await WaitAsync(cancellationToken);
-        ArmsOut(_settings.LeftArm, _settings.RightArm);
-        await WaitAsync(cancellationToken);
-        NeutralGrippers();
-        await WaitAsync(cancellationToken);
+        await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         Orientation.Pitch(invert);
@@ -166,10 +163,7 @@ public sealed class RobotController : IDisposable
         await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
-        ArmsOut(_settings.TopArm, _settings.BottomArm);
-        await WaitAsync(cancellationToken);
-        NeutralGrippers();
-        await WaitAsync(cancellationToken);
+        await RetractThenHomeTurnersAsync(_settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         Orientation.Yaw(invert);
@@ -285,17 +279,28 @@ public sealed class RobotController : IDisposable
         Orientation.Yaw(invert);
     }
 
+    public async Task ReverseYawHomeAsync(CancellationToken cancellationToken, bool undoOpposite = false)
+    {
+        NeutralGripper(_settings.TopTurner);
+        NeutralGripper(_settings.BottomTurner);
+        await WaitAsync(cancellationToken);
+        Orientation.Yaw(_settings.InvertYaw ^ !undoOpposite);
+    }
+
+    public async Task ReversePitchHomeAsync(CancellationToken cancellationToken, bool undoOpposite = false)
+    {
+        NeutralGripper(_settings.LeftTurner);
+        NeutralGripper(_settings.RightTurner);
+        await WaitAsync(cancellationToken);
+        Orientation.Pitch(_settings.InvertPitch ^ !undoOpposite);
+    }
+
     public async Task ResetYawTurnersForScanAsync(CancellationToken cancellationToken)
     {
         SetArm(_settings.LeftArm, inside: true);
         SetArm(_settings.RightArm, inside: true);
         await WaitAsync(cancellationToken);
-        SetArm(_settings.TopArm, inside: false);
-        SetArm(_settings.BottomArm, inside: false);
-        await WaitAsync(cancellationToken);
-        NeutralGripper(_settings.TopTurner);
-        NeutralGripper(_settings.BottomTurner);
-        await WaitAsync(cancellationToken);
+        await RetractThenHomeTurnersAsync(_settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner, cancellationToken);
         SetArm(_settings.TopArm, inside: true);
         SetArm(_settings.BottomArm, inside: true);
         await WaitAsync(cancellationToken);
@@ -306,15 +311,10 @@ public sealed class RobotController : IDisposable
 
     public async Task HandoffToLeftRightParkTopBottomAsync(CancellationToken cancellationToken)
     {
-        SetArm(_settings.LeftArm, inside: true);
-        SetArm(_settings.RightArm, inside: true);
+        SetArm(_settings.LeftArm, inside: true, squeeze: true);
+        SetArm(_settings.RightArm, inside: true, squeeze: true);
         await WaitAsync(cancellationToken);
-        SetArm(_settings.TopArm, inside: false);
-        SetArm(_settings.BottomArm, inside: false);
-        await WaitAsync(cancellationToken);
-        NeutralGripper(_settings.TopTurner);
-        NeutralGripper(_settings.BottomTurner);
-        await WaitAsync(cancellationToken);
+        await RetractThenHomeTurnersAsync(_settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner, cancellationToken);
     }
 
     public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
@@ -322,35 +322,32 @@ public sealed class RobotController : IDisposable
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
         await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
-        SetArm(_settings.LeftArm, inside: true);
-        SetArm(_settings.RightArm, inside: true);
+        SetArm(_settings.LeftArm, inside: true, squeeze: true);
+        SetArm(_settings.RightArm, inside: true, squeeze: true);
         await WaitAsync(cancellationToken);
         Orientation.Pitch(invert);
     }
 
-    public async Task ResetPitchTurnersForScanAsync(CancellationToken cancellationToken)
+    public async Task FinishScanHugAsync(CancellationToken cancellationToken)
     {
         SetArm(_settings.TopArm, inside: true);
         SetArm(_settings.BottomArm, inside: true);
         await WaitAsync(cancellationToken);
-        SetArm(_settings.LeftArm, inside: false);
-        SetArm(_settings.RightArm, inside: false);
-        await WaitAsync(cancellationToken);
-        NeutralGripper(_settings.LeftTurner);
-        NeutralGripper(_settings.RightTurner);
-        await WaitAsync(cancellationToken);
         SetArm(_settings.LeftArm, inside: true);
         SetArm(_settings.RightArm, inside: true);
         await WaitAsync(cancellationToken);
-        SetArm(_settings.TopArm, inside: false);
-        SetArm(_settings.BottomArm, inside: false);
-        await WaitAsync(cancellationToken);
     }
 
-    public async Task FinishScanHugAsync(CancellationToken cancellationToken)
+    async Task RetractThenHomeTurnersAsync(
+        ArmCalibration armA, ArmCalibration armB,
+        GripperCalibration turnerA, GripperCalibration turnerB,
+        CancellationToken cancellationToken)
     {
-        NeutralGrippers();
-        AllArmsIn();
+        SetArm(armA, inside: false);
+        SetArm(armB, inside: false);
+        await WaitAsync(cancellationToken);
+        NeutralGripper(turnerA);
+        NeutralGripper(turnerB);
         await WaitAsync(cancellationToken);
     }
 
@@ -372,6 +369,10 @@ public sealed class RobotController : IDisposable
     {
         var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
         mag += Math.Max(0, extraUs);
+        mag = Math.Min(mag, a.StartUs - ServoMinUs);
+        mag = Math.Min(mag, b.StartUs - ServoMinUs);
+        mag = Math.Min(mag, ServoMaxUs - a.StartUs);
+        mag = Math.Min(mag, ServoMaxUs - b.StartUs);
         mag = Math.Max(mag, 1);
 
         var signA = Math.Sign(a.EndUs - a.StartUs);

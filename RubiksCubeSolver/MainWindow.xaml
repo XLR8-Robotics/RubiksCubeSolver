@@ -144,7 +144,7 @@
                                              ToolTip="Extra microseconds past In when two grippers roll together, so the center turns with the cube."/>
                                     <TextBlock Text="Pitch extra µs" Width="110" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.PitchExtraUs}" Width="80"
-                                             ToolTip="Extra travel on left/right tumble so Top and Bottom square up to 90°. Try 80–150 if pitch still stops short."/>
+                                             ToolTip="Keep at 0 until Maestro turner min is 256. Then add 40–80 only if Top/Bottom still stop short of square. Extra must stay equal on both grippers or the cube will twist."/>
                                 </StackPanel>
                                 <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" Background="{StaticResource AccentBrush}" HorizontalAlignment="Left"/>
                             </StackPanel>
