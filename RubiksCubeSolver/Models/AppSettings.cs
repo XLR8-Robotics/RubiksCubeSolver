@@ -51,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 15;
+    public const int CurrentCalibrationVersion = 14;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -77,8 +77,6 @@ public sealed class AppSettings
     public int ZenDisplaySeconds { get; set; } = 15;
     public int TumbleSqueezeUs { get; set; } = 80;
     public int PitchExtraUs { get; set; }
-    /// <summary>~½" extra on the TOP pitch so the U face sits square to the camera.</summary>
-    public int PitchTopExtraUs { get; set; } = 110;
     public int TumbleTrimUs { get; set; } = 35;
     public int SettleMs { get; set; } = 120;
     public int MovementTimeoutMs { get; set; } = 4000;
@@ -180,14 +178,6 @@ public sealed class AppSettings
                 if (settings.HugTopBottomBackoffUs <= 0)
                 {
                     settings.HugTopBottomBackoffUs = 150;
-                }
-            }
-
-            if (settings.CalibrationVersion < 15)
-            {
-                if (settings.PitchTopExtraUs <= 0)
-                {
-                    settings.PitchTopExtraUs = 110;
                 }
             }
 

@@ -246,7 +246,7 @@
                                              ToolTip="Lighter grip for 90° turns (lower = less stall). Try 60–100."/>
                                     <TextBlock Text="Hug TB backoff µs" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.HugTopBottomBackoffUs}" Width="60" Margin="0,0,16,0"
-                                             ToolTip="Top/bottom stop this far short of In during hug (150 default). Increase if top/bottom stall or get hot."/>
+                                             ToolTip="Bottom (and previously top) stop this far short of In during hug. Top now goes to full In so it sits on the cube."/>
                                     <TextBlock Text="Turn speed cap" Width="100" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.TurnSpeedCap}" Width="50" Margin="0,0,16,0"
                                              ToolTip="Max turner speed during dual tumbles (lower = gentler). 0 = use calibration."/>
@@ -260,10 +260,7 @@
                                              ToolTip="Extra microseconds past In when two grippers roll together, so the center turns with the cube."/>
                                     <TextBlock Text="Pitch extra µs" Width="110" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.PitchExtraUs}" Width="80" Margin="0,0,16,0"
-                                             ToolTip="Added to every pitch. Keep at 0 unless both Top and Bottom stop short of square."/>
-                                    <TextBlock Text="Top pitch extra" Width="110" VerticalAlignment="Center"/>
-                                    <TextBox Text="{Binding Settings.PitchTopExtraUs}" Width="80" Margin="0,0,16,0"
-                                             ToolTip="Extra µs on the TOP pitch only (~110 ≈ ½ inch). Raise if Top still stops short."/>
+                                             ToolTip="Keep at 0 unless Top/Bottom pitch stops short of square."/>
                                     <TextBlock Text="Tumble trim µs" Width="110" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.TumbleTrimUs}" Width="80"
                                              ToolTip="Subtract from pair yaw/pitch. Use 15–25 if Left/Right go past 90° (about 92°)."/>
