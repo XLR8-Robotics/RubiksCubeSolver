@@ -145,9 +145,8 @@ public sealed class RobotController : IDisposable
 
     public async Task PitchAsync(CancellationToken cancellationToken)
     {
-        await HoldLeftRightAsync(cancellationToken);
-        TurnPitchPair();
-        await WaitAsync(cancellationToken);
+        await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         ArmsOut(_settings.LeftArm, _settings.RightArm);
@@ -161,9 +160,8 @@ public sealed class RobotController : IDisposable
 
     public async Task YawAsync(CancellationToken cancellationToken)
     {
-        await HoldTopBottomAsync(cancellationToken);
-        TurnYawPair();
-        await WaitAsync(cancellationToken);
+        await HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken);
+        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         ArmsOut(_settings.TopArm, _settings.BottomArm);
@@ -261,22 +259,39 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    async Task HoldLeftRightAsync(CancellationToken cancellationToken)
+    async Task HoldPairAsync(ArmCalibration holdA, ArmCalibration holdB, ArmCalibration clearA, ArmCalibration clearB, CancellationToken cancellationToken)
     {
-        SetArm(_settings.LeftArm, true);
-        SetArm(_settings.RightArm, true);
-        SetArm(_settings.TopArm, false);
-        SetArm(_settings.BottomArm, false);
+        SetArm(holdA, inside: true, squeeze: true);
+        SetArm(holdB, inside: true, squeeze: true);
+        SetArm(clearA, inside: false);
+        SetArm(clearB, inside: false);
         await WaitAsync(cancellationToken);
     }
 
-    async Task HoldTopBottomAsync(CancellationToken cancellationToken)
+    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken)
     {
-        SetArm(_settings.TopArm, true);
-        SetArm(_settings.BottomArm, true);
-        SetArm(_settings.LeftArm, false);
-        SetArm(_settings.RightArm, false);
+        var targetA = invertDirection ? a.OppositeEndUs : a.EndUs;
+        var targetB = invertDirection ? b.EndUs : b.OppositeEndUs;
+        MatchPairSpeeds(a, b, targetA, targetB);
+        SetGripperTarget(a, targetA);
+        SetGripperTarget(b, targetB);
         await WaitAsync(cancellationToken);
+        ConfigureGripper(a);
+        ConfigureGripper(b);
+    }
+
+    void MatchPairSpeeds(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
+    {
+        var distA = Math.Max(1, Math.Abs(targetA - a.StartUs));
+        var distB = Math.Max(1, Math.Abs(targetB - b.StartUs));
+        var shorter = Math.Min(distA, distB);
+        const double baseSpeed = 50;
+        var speedA = (ushort)Math.Clamp(Math.Round(baseSpeed * distA / shorter), 1, 255);
+        var speedB = (ushort)Math.Clamp(Math.Round(baseSpeed * distB / shorter), 1, 255);
+        _maestro.SetAcceleration(a.Port, 0);
+        _maestro.SetAcceleration(b.Port, 0);
+        _maestro.SetSpeed(a.Port, speedA);
+        _maestro.SetSpeed(b.Port, speedB);
     }
 
     void ConfigureGripper(GripperCalibration gripper)
@@ -300,30 +315,6 @@ public sealed class RobotController : IDisposable
     }
 
     void NeutralGripper(GripperCalibration gripper) => SetGripper(gripper, turned: false);
-
-    void TurnPitchPair()
-    {
-        TurnGripperPair(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch);
-    }
-
-    void TurnYawPair()
-    {
-        TurnGripperPair(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw);
-    }
-
-    void TurnGripperPair(GripperCalibration a, GripperCalibration b, bool invertDirection)
-    {
-        if (invertDirection)
-        {
-            SetGripperTarget(a, a.OppositeEndUs);
-            SetGripperTarget(b, b.EndUs);
-        }
-        else
-        {
-            SetGripperTarget(a, a.EndUs);
-            SetGripperTarget(b, b.OppositeEndUs);
-        }
-    }
 
     void SetGripper(GripperCalibration gripper, bool turned)
     {
@@ -359,9 +350,30 @@ public sealed class RobotController : IDisposable
         }
     }
 
-    void SetArm(ArmCalibration arm, bool inside)
+    void SetArm(ArmCalibration arm, bool inside, bool squeeze = false)
     {
-        _maestro.SetTargetMicroseconds(arm.Port, inside ? arm.InUs : arm.OutUs);
+        double microseconds;
+        if (!inside)
+        {
+            microseconds = arm.OutUs;
+        }
+        else if (squeeze)
+        {
+            var extra = Math.Max(0, _settings.TumbleSqueezeUs);
+            var towardCube = Math.Sign(arm.InUs - arm.OutUs);
+            if (towardCube == 0)
+            {
+                towardCube = -1;
+            }
+
+            microseconds = Math.Clamp(arm.InUs + towardCube * extra, 500, 2496);
+        }
+        else
+        {
+            microseconds = arm.InUs;
+        }
+
+        _maestro.SetTargetMicroseconds(arm.Port, microseconds);
     }
 
     Task WaitAsync(CancellationToken cancellationToken) =>
