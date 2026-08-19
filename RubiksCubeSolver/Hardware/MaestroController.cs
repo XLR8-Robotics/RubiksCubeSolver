@@ -94,17 +94,22 @@ public sealed class MaestroController : IDisposable
 
         lock (_gate)
         {
-            _port.DiscardInBuffer();
-            _port.Write([GetMovingStateCommand], 0, 1);
-            try
+            for (int attempt = 0; attempt < 3; attempt++)
             {
-                var value = _port.ReadByte();
-                return value != 0;
+                _port.DiscardInBuffer();
+                _port.Write([GetMovingStateCommand], 0, 1);
+                try
+                {
+                    var value = _port.ReadByte();
+                    return value != 0;
+                }
+                catch (TimeoutException)
+                {
+                    // Keep treating the servos as moving so we do not start the next turn early.
+                }
             }
-            catch (TimeoutException)
-            {
-                return false;
-            }
+
+            return true;
         }
     }
 

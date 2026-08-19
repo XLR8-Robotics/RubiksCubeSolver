@@ -679,7 +679,7 @@ public partial class MainViewModel : ObservableObject
     async Task<List<Scalar[]>> ScanAllFacesAsync(CancellationToken cancellationToken)
     {
         var map = new Dictionary<CubeFace, Scalar[]>();
-        AppendLog("Scan: F merge, yaw R, reverse F, yaw L, reset, yaw B merge, yaw to F, pitch U, reverse F, pitch D, hug.");
+        AppendLog("Scan: F merge, yaw R, reset, yaw F, reset, yaw L, reset, yaw B merge, yaw to F, pitch U, reset, yaw F, pitch D, hug.");
 
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
         {
@@ -724,7 +724,10 @@ public partial class MainViewModel : ObservableObject
         await _robot!.YawScanAsync(cancellationToken);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
-        await _robot.ReverseYawHomeAsync(cancellationToken);
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
+        await _robot.YawScanAsync(cancellationToken, opposite: true);
+
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
         await _robot.YawScanAsync(cancellationToken, opposite: true);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
@@ -732,16 +735,24 @@ public partial class MainViewModel : ObservableObject
         await _robot.YawScanAsync(cancellationToken, opposite: true);
         await CaptureMergedFaceAsync(_robot.Orientation.Front);
 
-        await _robot.ReverseYawHomeAsync(cancellationToken, undoOpposite: true);
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
+        await _robot.YawScanAsync(cancellationToken);
+        await _robot.ResetYawTurnersForScanAsync(cancellationToken);
         await _robot.YawScanAsync(cancellationToken);
         await _robot.HandoffToLeftRightParkTopBottomAsync(cancellationToken);
 
         await _robot.PitchScanAsync(cancellationToken);
         await CaptureOpenAsync(_robot.Orientation.Front);
-        await _robot.ReversePitchHomeAsync(cancellationToken);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        await _robot.PitchScanAsync(cancellationToken, opposite: true);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
         await _robot.PitchScanAsync(cancellationToken, opposite: true);
         await CaptureOpenAsync(_robot.Orientation.Front);
-        await _robot.ReversePitchHomeAsync(cancellationToken, undoOpposite: true);
+
+        await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        await _robot.PitchScanAsync(cancellationToken);
         await _robot.FinishScanHugAsync(cancellationToken);
 
         return
