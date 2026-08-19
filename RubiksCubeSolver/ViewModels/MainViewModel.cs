@@ -5,6 +5,7 @@ using OpenCvSharp.WpfExtensions;
 using RubiksCubeSolver.Hardware;
 using RubiksCubeSolver.Models;
 using RubiksCubeSolver.Robot;
+using RubiksCubeSolver.Robot.Scan;
 using RubiksCubeSolver.Solver;
 using RubiksCubeSolver.Solver.Kociemba;
 using RubiksCubeSolver.Vision;
@@ -88,7 +89,7 @@ public partial class MainViewModel : ObservableObject
         TestMode = Settings.TestMode;
         if (!TestMode)
         {
-            AppendLog("Ready. Pick your webcam, connect the Mini Maestro Command Port, then Load a cube.");
+            AppendLog("Ready. Pick your webcam, connect the Mini Maestro Command Port, then Open the arms and insert a cube.");
             AppendLog("Set the Maestro serial mode to USB Dual Port in Pololu Maestro Control Center.");
             AppendLog("Turn on Test mode to scramble and solve the digital cube with no hardware.");
         }
@@ -332,7 +333,7 @@ public partial class MainViewModel : ObservableObject
             _robot.ConfigureChannels();
             ConnectionText = $"Connected ({SelectedPort.PortName})";
             Settings.Save();
-            AppendLog("Connected. Use Load to open the arms, insert the cube, then Start.");
+            AppendLog("Connected. Use Open to release the arms, insert the cube, Close to hug it, then Start.");
         }
         catch (Exception ex)
         {
@@ -353,7 +354,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task LoadAsync()
+    public async Task CloseAsync()
+    {
+        await RunExclusiveAsync("Closing arms", async ct =>
+        {
+            if (TestMode)
+            {
+                AppendLog("Test mode: hugged (no hardware).");
+                return;
+            }
+
+            EnsureRobot();
+            await _robot!.CloseAsync(ct);
+            AppendLog("Cube hugged. Click Start to scan and solve.");
+        });
+    }
+
+    [RelayCommand]
+    public async Task OpenAsync()
     {
         await RunExclusiveAsync("Opening arms", async ct =>
         {
@@ -362,32 +380,13 @@ public partial class MainViewModel : ObservableObject
                 _digital.ResetSolved();
                 ApplyStickers(_digital.Colors);
                 SolutionText = "";
-                AppendLog("Test mode: digital cube reset to solved. Click Start to scramble and solve.");
-                return;
-            }
-
-            EnsureRobot();
-            await _robot!.LoadAsync(ct);
-            AppendLog("Arms open. Insert the cube with the Rubik's logo (white face) toward the camera, then click Start.");
-        });
-    }
-
-    [RelayCommand]
-    public async Task UnloadAsync()
-    {
-        await RunExclusiveAsync("Unloading", async ct =>
-        {
-            if (TestMode)
-            {
-                _digital.ResetSolved();
-                ApplyStickers(_digital.Colors);
                 AppendLog("Test mode: digital cube released (reset to solved).");
                 return;
             }
 
             EnsureRobot();
-            await _robot!.UnloadAsync(ct);
-            AppendLog("Cube released.");
+            await _robot!.OpenAsync(ct);
+            AppendLog("Arms open. Insert or remove the cube with the Rubik's logo (white face) toward the camera.");
         });
     }
 
@@ -414,7 +413,7 @@ public partial class MainViewModel : ObservableObject
                 AppendLog($"Test photo captured ({_webcam.Resolution}).");
             }
 
-            await _robot.LoadAsync(ct);
+            await _robot.OpenAsync(ct);
         });
     }
 
@@ -756,7 +755,7 @@ public partial class MainViewModel : ObservableObject
 
         EnsureRobot();
         _robot!.ResetOrientation();
-        AppendLog("Load convention: white/logo face toward the camera (this becomes Front for the scan).");
+        AppendLog("Insert convention: white/logo face toward the camera (this becomes Front for the scan).");
         AppendLog("Hugging cube...");
         await _robot.HugAsync(cancellationToken);
         var faces = await ScanAllFacesAsync(cancellationToken);
@@ -786,7 +785,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (unloadOnError && !TestMode && _robot is not null)
             {
-                await _robot.UnloadAsync(cancellationToken);
+                await _robot.OpenAsync(cancellationToken);
             }
 
             throw new InvalidOperationException("Unsolvable cube. " + ColorClassifier.DescribeVerifyError(verify)
@@ -932,22 +931,6 @@ public partial class MainViewModel : ObservableObject
         var frameGapMs = Math.Clamp(Settings.ScanFrameGapMs, 40, 1000);
         AppendLog($"Scan: F → R → B → L, then pitch U/D both ways ({frameCount} frames/hold).");
 
-        void LogState(string step)
-        {
-            AppendLog($"STATE after {step}: CURRENT_FACE={_robot!.CurrentCameraFace}");
-        }
-
-        async Task TurnOnceDualPhotoTurnerHomeAsync(CubeFace face, string label)
-        {
-            AppendLog($"{label}: TURN_R_90");
-            await _robot!.ScanTurnRight90CountAsync(cancellationToken, 1);
-            AppendLog($"{label}: dual hold photo (TB hold + RL hold, merge)");
-            await CaptureFaceDualHoldAsync(face, label);
-            AppendLog($"{label}: retract TB, unwind yaw turners, re-grip");
-            await _robot.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
-            LogState($"{label} photo");
-        }
-
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
         {
             var frames = new List<Scalar[]>(frameCount);
@@ -968,9 +951,9 @@ public partial class MainViewModel : ObservableObject
             return FaceScanner.AverageSamples(frames);
         }
 
-        async Task CaptureFaceAsync(CubeFace face, string label)
+        async Task CaptureFaceAsync(CubeFace face, string label, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested();
             if (map.ContainsKey(face))
             {
                 throw new InvalidOperationException($"Face {face} was already scanned — sequence error at {label}.");
@@ -984,9 +967,9 @@ public partial class MainViewModel : ObservableObject
             AppendLog($"Stored {face} ({label}).");
         }
 
-        async Task CaptureFaceDualHoldAsync(CubeFace face, string label)
+        async Task CaptureFaceDualHoldAsync(CubeFace face, string label, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested();
             if (map.ContainsKey(face))
             {
                 throw new InvalidOperationException($"Face {face} was already scanned — sequence error at {label}.");
@@ -994,18 +977,31 @@ public partial class MainViewModel : ObservableObject
 
             StatusText = $"Photographing {face} (TB hold)";
             AppendLog($"PHOTO_{label}: TB hold, CURRENT_FACE={_robot!.CurrentCameraFace}, {frameCount} frames.");
-            await _robot.ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
+            await _robot.ScanExposeTopBottomHoldForPhotoAsync(ct);
             var topBottomHold = await GrabFaceAsync(Settings.VideoDurationMs);
 
             StatusText = $"Photographing {face} (RL hold)";
             AppendLog($"PHOTO_{label}: RL hold, {frameCount} frames.");
-            await _robot.ScanExposeLeftRightHoldForPhotoAsync(cancellationToken);
+            await _robot.ScanExposeLeftRightHoldForPhotoAsync(ct);
             var leftRightHold = await GrabFaceAsync(Settings.VideoDurationMs);
 
             var samples = FaceScanner.MergeDualHold(topBottomHold, leftRightHold);
             map[face] = samples;
             ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray());
             AppendLog($"Stored {face} ({label}) — merged TB+RL holds.");
+
+            if (face == CubeFace.F)
+            {
+                var frontCenter = ColorClassifier.Guess(samples[4]);
+                if (frontCenter == StickerColor.White)
+                {
+                    AppendLog("Front center read as White — matches logo-face load.");
+                }
+                else
+                {
+                    AppendLog($"Front center read as {frontCenter}, not White. Load with the logo (white) face toward the camera.");
+                }
+            }
         }
 
         async Task CapturePitchedFaceAsync(string label)
@@ -1024,51 +1020,18 @@ public partial class MainViewModel : ObservableObject
             }
 
             await CaptureFaceAsync(face, name);
-            LogState($"{name} photo");
+            AppendLog($"STATE after {name} photo: CURRENT_FACE={_robot.CurrentCameraFace}");
         }
 
         _robot!.ResetOrientation();
         AppendLog("START: CURRENT_FACE=FRONT, RL_IN, TB_IN, turners reset.");
 
-        AppendLog("FRONT: dual hold photo (TB hold + RL hold, merge)");
-        await CaptureFaceDualHoldAsync(CubeFace.F, "FRONT");
-        var frontCenter = ColorClassifier.Guess(map[CubeFace.F][4]);
-        if (frontCenter == StickerColor.White)
-        {
-            AppendLog("Front center read as White — matches logo-face load.");
-        }
-        else
-        {
-            AppendLog($"Front center read as {frontCenter}, not White. Load with the logo (white) face toward the camera.");
-        }
-
-        LogState("FRONT photo");
-
-        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.R, "RIGHT");
-        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.B, "BACK");
-        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.L, "LEFT");
-
-        AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch phase)");
-        await _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
-        AppendLog("RETURN: retract TB, unwind yaw turners at FRONT");
-        await _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
-        LogState("back at FRONT for pitch");
-
-        AppendLog("U/D: pitch 90°, photo, unwind back to FRONT (keep RL hold)");
-        await _robot.ScanPitchToTopAsync(cancellationToken);
-        await CapturePitchedFaceAsync("first pitch");
-        await _robot.ScanPitchReturnToFrontAsync(cancellationToken);
-        LogState("back at FRONT after first pitch");
-
-        AppendLog("U/D: pitch 90° the other way, photo, unwind back to FRONT");
-        await _robot.ScanPitchToBottomAsync(cancellationToken);
-        await CapturePitchedFaceAsync("other way");
-        await _robot.ScanPitchReturnToFrontAsync(cancellationToken);
-        LogState("back at FRONT after second pitch");
-
-        AppendLog("FINISH: hug at FRONT, then solve");
-        await _robot.ScanFinishHugAtFrontAsync(cancellationToken);
-        LogState("scan complete");
+        var session = new CubeScanSession(
+            this,
+            _robot,
+            CaptureFaceDualHoldAsync,
+            CapturePitchedFaceAsync);
+        await CubeScanSequence.RunAsync(session, CubeScanSequence.Default, cancellationToken);
 
         if (_robot.CurrentCameraFace != CubeFace.F)
         {
@@ -1090,6 +1053,57 @@ public partial class MainViewModel : ObservableObject
             map[CubeFace.L],
             map[CubeFace.B]
         ];
+    }
+
+    sealed class CubeScanSession : IScanSession
+    {
+        readonly MainViewModel _viewModel;
+        readonly RobotController _robot;
+        readonly Func<CubeFace, string, CancellationToken, Task> _captureDualHold;
+        readonly Func<string, CancellationToken, Task> _capturePitched;
+
+        public CubeScanSession(
+            MainViewModel viewModel,
+            RobotController robot,
+            Func<CubeFace, string, CancellationToken, Task> captureDualHold,
+            Func<string, CancellationToken, Task> capturePitched)
+        {
+            _viewModel = viewModel;
+            _robot = robot;
+            _captureDualHold = captureDualHold;
+            _capturePitched = capturePitched;
+        }
+
+        public CubeFace CurrentCameraFace => _robot.CurrentCameraFace;
+
+        public void Log(string message) => _viewModel.AppendLog(message);
+
+        public Task CaptureDualHoldAsync(CubeFace face, string label, CancellationToken cancellationToken) =>
+            _captureDualHold(face, label, cancellationToken);
+
+        public Task CapturePitchedFaceAsync(string label, CancellationToken cancellationToken) =>
+            _capturePitched(label, cancellationToken);
+
+        public Task ScanTurnRight90Async(CancellationToken cancellationToken) =>
+            _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
+
+        public Task ScanYawTurnersHomeKeepFaceAsync(CancellationToken cancellationToken) =>
+            _robot.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
+
+        public Task ScanYawTurnersHomeAtFrontAsync(CancellationToken cancellationToken) =>
+            _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
+
+        public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
+            _robot.ScanPitchToTopAsync(cancellationToken);
+
+        public Task ScanPitchToBottomAsync(CancellationToken cancellationToken) =>
+            _robot.ScanPitchToBottomAsync(cancellationToken);
+
+        public Task ScanPitchReturnToFrontAsync(CancellationToken cancellationToken) =>
+            _robot.ScanPitchReturnToFrontAsync(cancellationToken);
+
+        public Task ScanFinishHugAtFrontAsync(CancellationToken cancellationToken) =>
+            _robot.ScanFinishHugAtFrontAsync(cancellationToken);
     }
 
     void ApplyStickers(StickerColor[] stickers)

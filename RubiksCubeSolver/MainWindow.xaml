@@ -45,9 +45,10 @@
                 </Grid>
                 <ProgressBar Value="{Binding Progress}" Maximum="1" Margin="0,8,0,12"/>
                 <WrapPanel>
-                    <Button Content="Load" Command="{Binding LoadCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"
-                            ToolTip="Open arms. Insert the cube with the Rubik's logo (white face) facing the camera."/>
-                    <Button Content="Unload" Command="{Binding UnloadCommand}" Background="{StaticResource PanelAltBrush}"/>
+                    <Button Content="Close" Command="{Binding CloseCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"
+                            ToolTip="Hug the cube. Insert it first with Open, logo (white face) toward the camera."/>
+                    <Button Content="Open" Command="{Binding OpenCommand}" Background="{StaticResource PanelAltBrush}"
+                            ToolTip="Release the cube so you can insert or remove it."/>
                     <Button Content="Start" Command="{Binding StartCommand}" Background="{StaticResource AccentBrush}"/>
                     <Button Content="Scramble" Command="{Binding ScrambleCommand}" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"
                             ToolTip="Hug and run a random 20-move scramble on the cube."/>
