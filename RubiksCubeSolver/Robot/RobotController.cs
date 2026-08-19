@@ -87,6 +87,8 @@ public sealed class RobotController : IDisposable
         Orientation = CubeOrientation.Home();
     }
 
+    public Action<string>? OnCommand { get; set; }
+
     public CubeOrientation Orientation { get; private set; }
 
     public void ResetOrientation()
@@ -266,97 +268,142 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
+    public Task TopBottomInAsync(CancellationToken cancellationToken, bool squeeze = true) =>
+        CommandAsync("Top/Bottom in", async ct =>
+        {
+            SetArm(_settings.TopArm, inside: true, squeeze: squeeze);
+            SetArm(_settings.BottomArm, inside: true, squeeze: squeeze);
+            await WaitAsync(ct);
+            await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
+        }, cancellationToken);
+
+    public Task TopBottomOutAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Top/Bottom out", async ct =>
+        {
+            SetArm(_settings.TopArm, inside: false);
+            SetArm(_settings.BottomArm, inside: false);
+            await WaitAsync(ct);
+        }, cancellationToken);
+
+    public Task LeftRightInAsync(CancellationToken cancellationToken, bool squeeze = true) =>
+        CommandAsync("Left/Right in", async ct =>
+        {
+            SetArm(_settings.LeftArm, inside: true, squeeze: squeeze);
+            SetArm(_settings.RightArm, inside: true, squeeze: squeeze);
+            await WaitAsync(ct);
+            await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
+        }, cancellationToken);
+
+    public Task LeftRightOutAsync(CancellationToken cancellationToken, bool clearOfCube = false) =>
+        CommandAsync(clearOfCube ? "Left/Right out and clear of cube" : "Left/Right out", async ct =>
+        {
+            SetArm(_settings.LeftArm, inside: false);
+            SetArm(_settings.RightArm, inside: false);
+            await WaitAsync(ct);
+            if (clearOfCube)
+            {
+                await Task.Delay(Math.Max(1200, _settings.SettleMs * 6), ct);
+            }
+        }, cancellationToken);
+
+    public Task PitchTurnersToStartAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Pitch turners to Start", ct => ReversePairToStartAsync(_settings.LeftTurner, _settings.RightTurner, ct), cancellationToken);
+
+    public Task YawTurnersToStartAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Yaw turners to Start", ct => ReversePairToStartAsync(_settings.TopTurner, _settings.BottomTurner, ct), cancellationToken);
+
+    public Task PitchSpin90Async(CancellationToken cancellationToken, bool opposite = false) =>
+        CommandAsync(opposite ? "Pitch 90° the other way" : "Pitch 90°", async ct =>
+        {
+            var invert = _settings.InvertPitch ^ opposite;
+            await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs);
+            Orientation.Pitch(invert);
+        }, cancellationToken);
+
+    public Task YawSpin90Async(CancellationToken cancellationToken, bool opposite = false) =>
+        CommandAsync(opposite ? "Yaw 90° other way" : "Yaw 90°", async ct =>
+        {
+            var invert = _settings.InvertYaw ^ opposite;
+            await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, ct);
+            Orientation.Yaw(invert);
+        }, cancellationToken);
+
+    public async Task SequencePitchResetAsync(CancellationToken cancellationToken)
+    {
+        await TopBottomInAsync(cancellationToken, squeeze: true);
+        await LeftRightOutAsync(cancellationToken, clearOfCube: true);
+        await PitchTurnersToStartAsync(cancellationToken);
+        await LeftRightInAsync(cancellationToken, squeeze: true);
+        await TopBottomOutAsync(cancellationToken);
+    }
+
+    public async Task SequencePitch90Async(CancellationToken cancellationToken, bool opposite = false)
+    {
+        await LeftRightInAsync(cancellationToken, squeeze: true);
+        await TopBottomOutAsync(cancellationToken);
+        await PitchSpin90Async(cancellationToken, opposite);
+    }
+
+    public async Task SequenceYawResetAsync(CancellationToken cancellationToken)
+    {
+        await LeftRightInAsync(cancellationToken, squeeze: false);
+        await TopBottomOutAsync(cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+        await YawTurnersToStartAsync(cancellationToken);
+        await TopBottomInAsync(cancellationToken, squeeze: false);
+        await LeftRightOutAsync(cancellationToken);
+    }
+
+    public async Task SequenceYaw90Async(CancellationToken cancellationToken, bool opposite = false)
+    {
+        await TopBottomInAsync(cancellationToken, squeeze: false);
+        await LeftRightOutAsync(cancellationToken);
+        await YawSpin90Async(cancellationToken, opposite);
+    }
+
+    public async Task SequenceHandoffToPitchAsync(CancellationToken cancellationToken)
+    {
+        await LeftRightInAsync(cancellationToken, squeeze: true);
+        await TopBottomOutAsync(cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+        await YawTurnersToStartAsync(cancellationToken);
+    }
+
+    public async Task SequenceScanHugAsync(CancellationToken cancellationToken)
+    {
+        await TopBottomInAsync(cancellationToken, squeeze: false);
+        await LeftRightInAsync(cancellationToken, squeeze: false);
+    }
+
     public Task HoldTopBottomScanAsync(CancellationToken cancellationToken) =>
         HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken, squeeze: false);
 
     public Task HoldLeftRightScanAsync(CancellationToken cancellationToken) =>
         HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: false);
 
-    public async Task YawScanAsync(CancellationToken cancellationToken, bool opposite = false)
+    public Task YawScanAsync(CancellationToken cancellationToken, bool opposite = false) =>
+        SequenceYaw90Async(cancellationToken, opposite);
+
+    public Task ResetYawTurnersForScanAsync(CancellationToken cancellationToken) =>
+        SequenceYawResetAsync(cancellationToken);
+
+    public Task ResetPitchTurnersForScanAsync(CancellationToken cancellationToken) =>
+        SequencePitchResetAsync(cancellationToken);
+
+    public Task HandoffToLeftRightParkTopBottomAsync(CancellationToken cancellationToken) =>
+        SequenceHandoffToPitchAsync(cancellationToken);
+
+    public Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false) =>
+        SequencePitch90Async(cancellationToken, opposite);
+
+    public Task FinishScanHugAsync(CancellationToken cancellationToken) =>
+        SequenceScanHugAsync(cancellationToken);
+
+    async Task CommandAsync(string name, Func<CancellationToken, Task> command, CancellationToken cancellationToken)
     {
-        if (!PairCommandedAtStart(_settings.TopTurner, _settings.BottomTurner))
-        {
-            await ResetYawTurnersForScanAsync(cancellationToken);
-        }
-
-        var invert = _settings.InvertYaw ^ opposite;
-        await HoldTopBottomScanAsync(cancellationToken);
-        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken);
-        Orientation.Yaw(invert);
-    }
-
-    public async Task ResetYawTurnersForScanAsync(CancellationToken cancellationToken)
-    {
-        SetArm(_settings.LeftArm, inside: true);
-        SetArm(_settings.RightArm, inside: true);
-        await WaitAsync(cancellationToken);
-        await RetractThenHomeTurnersAsync(_settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner, cancellationToken);
-        SetArm(_settings.TopArm, inside: true);
-        SetArm(_settings.BottomArm, inside: true);
-        await WaitAsync(cancellationToken);
-        SetArm(_settings.LeftArm, inside: false);
-        SetArm(_settings.RightArm, inside: false);
-        await WaitAsync(cancellationToken);
-    }
-
-    public async Task ResetPitchTurnersForScanAsync(CancellationToken cancellationToken)
-    {
-        SetArm(_settings.TopArm, inside: true, squeeze: true);
-        SetArm(_settings.BottomArm, inside: true, squeeze: true);
-        await WaitAsync(cancellationToken);
-        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: false, cancellationToken);
-        await Task.Delay(Math.Max(300, _settings.SettleMs * 2), cancellationToken);
-        await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
-        await Task.Delay(Math.Max(200, _settings.SettleMs), cancellationToken);
-        SetArm(_settings.LeftArm, inside: true, squeeze: true);
-        SetArm(_settings.RightArm, inside: true, squeeze: true);
-        await WaitAsync(cancellationToken);
-        SetArm(_settings.TopArm, inside: false);
-        SetArm(_settings.BottomArm, inside: false);
-        await WaitAsync(cancellationToken);
-    }
-
-    public async Task HandoffToLeftRightParkTopBottomAsync(CancellationToken cancellationToken)
-    {
-        SetArm(_settings.LeftArm, inside: true, squeeze: true);
-        SetArm(_settings.RightArm, inside: true, squeeze: true);
-        await WaitAsync(cancellationToken);
-        await RetractThenHomeTurnersAsync(_settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner, cancellationToken);
-    }
-
-    public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
-    {
-        if (!PitchTurnersHomed || PairNearStart(_settings.LeftTurner, _settings.RightTurner) == false)
-        {
-            await ResetPitchTurnersForScanAsync(cancellationToken);
-        }
-
-        var invert = _settings.InvertPitch ^ opposite;
-        await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
-
-        var (targetA, targetB) = PairTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
-        if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetA, targetB))
-        {
-            await ResetPitchTurnersForScanAsync(cancellationToken);
-            await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
-        }
-
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
-        SetArm(_settings.LeftArm, inside: true, squeeze: true);
-        SetArm(_settings.RightArm, inside: true, squeeze: true);
-        await WaitAsync(cancellationToken);
-        await Task.Delay(Math.Max(200, _settings.SettleMs), cancellationToken);
-        Orientation.Pitch(invert);
-    }
-
-    public async Task FinishScanHugAsync(CancellationToken cancellationToken)
-    {
-        SetArm(_settings.TopArm, inside: true);
-        SetArm(_settings.BottomArm, inside: true);
-        await WaitAsync(cancellationToken);
-        SetArm(_settings.LeftArm, inside: true);
-        SetArm(_settings.RightArm, inside: true);
-        await WaitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        OnCommand?.Invoke(name);
+        await command(cancellationToken);
     }
 
     async Task RetractAllThenHomeTurnersAsync(CancellationToken cancellationToken)
@@ -474,17 +521,6 @@ public sealed class RobotController : IDisposable
         return distTarget <= Math.Max(80, travel * 0.15) || distTarget + 40 < distOther;
     }
 
-    bool SpinWouldBeTooFar(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
-    {
-        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        mag = Math.Max(1, mag - Math.Max(0, _settings.TumbleTrimUs));
-        var posA = _maestro.GetPositionMicroseconds(a.Port);
-        var posB = _maestro.GetPositionMicroseconds(b.Port);
-        var tooFarA = posA is not null && Math.Abs(targetA - posA.Value) > mag * 1.25;
-        var tooFarB = posB is not null && Math.Abs(targetB - posB.Value) > mag * 1.25;
-        return tooFarA || tooFarB;
-    }
-
     bool? PairNearStart(GripperCalibration a, GripperCalibration b)
     {
         var posA = _maestro.GetPositionMicroseconds(a.Port);
@@ -512,16 +548,6 @@ public sealed class RobotController : IDisposable
         {
             PitchTurnersHomed = homed;
         }
-    }
-
-    bool PairCommandedAtStart(GripperCalibration a, GripperCalibration b)
-    {
-        if (ReferenceEquals(a, _settings.TopTurner) || ReferenceEquals(b, _settings.TopTurner))
-        {
-            return YawTurnersHomed;
-        }
-
-        return PitchTurnersHomed;
     }
 
     (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
