@@ -14,7 +14,12 @@ public static class FaceScanner
     public static SampledFace Sample(Mat bgr, double margin)
     {
         margin = Math.Clamp(margin, 0.05, 0.4);
-        using var work = bgr.Clone();
+        using var work = EnsureBgr(bgr);
+        if (work.Empty() || work.Rows < 2 || work.Cols < 2)
+        {
+            throw new InvalidOperationException("Camera frame was empty or too small to scan.");
+        }
+
         var quad = TryFindFaceQuad(work) ?? DefaultQuad(work.Width, work.Height, margin);
         var warped = WarpFace(work, quad, 300);
         DrawQuad(work, quad);
@@ -37,10 +42,32 @@ public static class FaceScanner
             }
         }
 
+        using var left = new Mat();
+        var leftWidth = Math.Max(1, warped.Rows * work.Cols / Math.Max(1, work.Rows));
+        Cv2.Resize(work, left, new Size(leftWidth, warped.Rows));
         var composed = new Mat();
-        Cv2.HConcat([work, warped], composed);
+        Cv2.HConcat(left, warped, composed);
         warped.Dispose();
         return new SampledFace { Samples = samples, Preview = composed };
+    }
+
+    static Mat EnsureBgr(Mat src)
+    {
+        var bgr = new Mat();
+        switch (src.Channels())
+        {
+            case 1:
+                Cv2.CvtColor(src, bgr, ColorConversionCodes.GRAY2BGR);
+                break;
+            case 4:
+                Cv2.CvtColor(src, bgr, ColorConversionCodes.BGRA2BGR);
+                break;
+            default:
+                bgr = src.Clone();
+                break;
+        }
+
+        return bgr;
     }
 
     static Point2f[] DefaultQuad(int width, int height, double margin)
