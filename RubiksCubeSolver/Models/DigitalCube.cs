@@ -41,6 +41,31 @@ public sealed class DigitalCube
         Array.Copy(SolvedWestern(), Colors, 54);
     }
 
+    public bool IsSolved() => IsSolved(Colors);
+
+    public static bool IsSolved(IReadOnlyList<StickerColor> stickers)
+    {
+        for (int face = 0; face < 6; face++)
+        {
+            var start = face * 9;
+            var center = stickers[start + 4];
+            if (center is StickerColor.Unknown)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < 9; i++)
+            {
+                if (stickers[start + i] != center)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     public static IReadOnlyList<CubeMove> RandomScramble(int moves = 20)
     {
         var list = new List<CubeMove>(moves);

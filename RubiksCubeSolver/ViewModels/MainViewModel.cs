@@ -121,6 +121,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] string connectionText = "Disconnected";
     [ObservableProperty] bool isBusy;
     [ObservableProperty] bool testMode;
+    [ObservableProperty] bool zenModeRunning;
     [ObservableProperty] double progress;
     [ObservableProperty] string cameraResolution = "";
 
@@ -408,6 +409,18 @@ public partial class MainViewModel : ObservableObject
         await RunExclusiveAsync("Solving", SolveAsync);
     }
 
+    [RelayCommand]
+    public async Task ScrambleAsync()
+    {
+        await RunExclusiveAsync("Scrambling", ExecuteScrambleAsync);
+    }
+
+    [RelayCommand]
+    public async Task ZenModeAsync()
+    {
+        await RunExclusiveAsync("Zen mode", RunZenModeAsync);
+    }
+
     async Task SolveAsync(CancellationToken cancellationToken)
     {
         if (TestMode)
@@ -416,45 +429,197 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        var stickers = await ScanCubeAsync(cancellationToken);
+        await SolveFromStickersAsync(stickers, cancellationToken, unloadOnError: true);
+    }
+
+    async Task RunZenModeAsync(CancellationToken cancellationToken)
+    {
+        ZenModeRunning = true;
+        AppendLog("Zen mode on. Scan, solve, display, wait, scramble, repeat. Stop to end.");
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await ZenCycleAsync(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog("Zen mode: " + ex.Message);
+                    StatusText = "Zen mode retry";
+                    if (!TestMode && _robot is not null)
+                    {
+                        try
+                        {
+                            await _robot.HugAsync(cancellationToken);
+                        }
+                        catch
+                        {
+                            // Keep the loop alive.
+                        }
+                    }
+
+                    await Task.Delay(2000, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            ZenModeRunning = false;
+            AppendLog("Zen mode ended.");
+        }
+    }
+
+    async Task ZenCycleAsync(CancellationToken cancellationToken)
+    {
+        var stickers = await ScanCubeAsync(cancellationToken);
+        if (DigitalCube.IsSolved(stickers))
+        {
+            AppendLog("Zen mode: scanned cube is solved. Scrambling before solving.");
+            await ExecuteScrambleAsync(cancellationToken);
+            stickers = await ScanCubeAsync(cancellationToken);
+            if (DigitalCube.IsSolved(stickers))
+            {
+                AppendLog("Zen mode: still solved after scramble. Scrambling again.");
+                await ExecuteScrambleAsync(cancellationToken);
+                stickers = await ScanCubeAsync(cancellationToken);
+            }
+        }
+
+        await SolveFromStickersAsync(stickers, cancellationToken, unloadOnError: false);
+        await DisplaySolvedAsync(cancellationToken);
+        await CountdownAsync(Math.Max(1, Settings.ZenDisplaySeconds), cancellationToken);
+        AppendLog("Zen mode: scrambling for the next round.");
+        await ExecuteScrambleAsync(cancellationToken);
+    }
+
+    async Task<StickerColor[]> ScanCubeAsync(CancellationToken cancellationToken)
+    {
+        if (TestMode)
+        {
+            ApplyStickers(_digital.Colors);
+            AppendLog("Test mode: using the digital cube instead of a camera scan.");
+            return _digital.Colors.ToArray();
+        }
+
         EnsureRobot();
         _robot!.ResetOrientation();
         AppendLog("Hugging cube...");
         await _robot.HugAsync(cancellationToken);
-
         var faces = await ScanAllFacesAsync(cancellationToken);
         var stickers = ColorClassifier.ClassifyCube(faces);
         ApplyStickers(stickers);
         _digital.CopyFrom(stickers);
+        return stickers;
+    }
+
+    async Task SolveFromStickersAsync(StickerColor[] stickers, CancellationToken cancellationToken, bool unloadOnError)
+    {
+        _digital.CopyFrom(stickers);
+        ApplyStickers(stickers);
+        if (DigitalCube.IsSolved(stickers))
+        {
+            AppendLog("Cube is already solved.");
+            StatusText = "Solved";
+            return;
+        }
 
         var facelets = ColorClassifier.ToKociembaString(stickers);
         AppendLog("Facelet string: " + facelets);
         var verify = Tools.Verify(facelets);
         if (verify != 0)
         {
-            await _robot.UnloadAsync(cancellationToken);
+            if (unloadOnError && !TestMode && _robot is not null)
+            {
+                await _robot.UnloadAsync(cancellationToken);
+            }
+
             throw new InvalidOperationException("Unsolvable cube. " + ColorClassifier.DescribeVerifyError(verify)
-                + " Click stickers on the net to correct colors, then use Solve Net.");
+                + (unloadOnError ? " Click stickers on the net to correct colors, then use Solve Net." : ""));
         }
 
         AppendLog("Computing solution...");
         var moves = CubeSolver.Solve(facelets);
         SolutionText = string.Join(' ', moves);
         AppendLog($"Solution ({moves.Count} moves): {SolutionText}");
+        await ExecuteMovesAsync(moves, "Solving", cancellationToken, progressStart: 0, progressSpan: 1);
+        if (!TestMode)
+        {
+            await _robot!.HugAsync(cancellationToken);
+        }
 
+        AppendLog("Cube solved.");
+        StatusText = "Solved";
+    }
+
+    async Task ExecuteScrambleAsync(CancellationToken cancellationToken)
+    {
+        if (!TestMode)
+        {
+            EnsureRobot();
+            AppendLog("Hugging cube to scramble...");
+            await _robot!.HugAsync(cancellationToken);
+        }
+
+        var scramble = DigitalCube.RandomScramble(20);
+        SolutionText = "Scramble: " + string.Join(' ', scramble);
+        AppendLog(SolutionText);
+        await ExecuteMovesAsync(scramble, "Scrambling", cancellationToken, progressStart: 0, progressSpan: 1);
+        if (!TestMode)
+        {
+            await _robot!.HugAsync(cancellationToken);
+        }
+
+        AppendLog("Scramble complete.");
+        StatusText = "Scrambled";
+    }
+
+    async Task ExecuteMovesAsync(IReadOnlyList<CubeMove> moves, string verb, CancellationToken cancellationToken, double progressStart, double progressSpan)
+    {
         for (int i = 0; i < moves.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Progress = (i + 1) / (double)moves.Count;
-            StatusText = $"Executing {moves[i]} ({i + 1}/{moves.Count})";
-            AppendLog($"Move {i + 1}/{moves.Count}: {moves[i]}");
-            var robotMove = _robot.TurnCubeFaceAsync(moves[i], cancellationToken);
+            Progress = progressStart + progressSpan * (i + 1) / Math.Max(1, moves.Count);
+            StatusText = $"{verb} {moves[i]} ({i + 1}/{moves.Count})";
+            AppendLog($"{verb} {i + 1}/{moves.Count}: {moves[i]}");
+            Task robotMove = TestMode || _robot is null
+                ? Task.CompletedTask
+                : _robot.TurnCubeFaceAsync(moves[i], cancellationToken);
             await PlayDigitalMoveAsync(moves[i], cancellationToken);
             await robotMove;
         }
+    }
 
-        await _robot.HugAsync(cancellationToken);
-        AppendLog("Cube solved.");
-        StatusText = "Solved";
+    async Task DisplaySolvedAsync(CancellationToken cancellationToken)
+    {
+        if (TestMode)
+        {
+            AppendLog("Test mode: display pose skipped (left, right, and top would retract).");
+            StatusText = "Displaying";
+            return;
+        }
+
+        EnsureRobot();
+        AppendLog("Display pose: retracting left, right, and top. Bottom keeps holding.");
+        await _robot!.DisplayAsync(cancellationToken);
+        StatusText = "Displaying";
+    }
+
+    async Task CountdownAsync(int seconds, CancellationToken cancellationToken)
+    {
+        for (int left = seconds; left > 0; left--)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            StatusText = ZenModeRunning ? $"Zen display {left}s" : $"Waiting {left}s";
+            Progress = 1 - left / (double)seconds;
+            await Task.Delay(1000, cancellationToken);
+        }
     }
 
     [RelayCommand]

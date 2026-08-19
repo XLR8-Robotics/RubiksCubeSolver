@@ -33,6 +33,7 @@ public sealed class AppSettings
     public bool InvertPitch { get; set; }
     public bool InvertYaw { get; set; }
     public bool TestMode { get; set; }
+    public int ZenDisplaySeconds { get; set; } = 15;
     public int SettleMs { get; set; } = 120;
     public int MovementTimeoutMs { get; set; } = 4000;
     public int CalibrationVersion { get; set; }

@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RubiksCubeSolver.ViewModels"
         xmlns:controls="clr-namespace:RubiksCubeSolver.Controls"
-        Title="Rubik's Cube Solver — Mini Maestro 12"
+        Title="Rubik's Cube Solver"
+        Icon="pack://application:,,,/Assets/app.png"
         Height="940" Width="1480"
         MinHeight="780" MinWidth="1280"
         Background="{StaticResource BgBrush}">
@@ -18,17 +19,12 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="RUBIK'S CUBE SOLVER" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
-                    <TextBlock Text="OTVINTA 4-arm robot · Pololu Mini Maestro 12 · Webcam scan" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="Rubik's Cube Solver" FontSize="22" FontWeight="SemiBold"/>
                     <TextBlock Text="{Binding ConnectionText}" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Webcam" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedBrush}"/>
-                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"
-                              Width="260" Margin="0,0,8,0" ToolTip="Choose the robot webcam"/>
-                    <Button Content="Use camera" Command="{Binding ApplyCameraCommand}" Background="{StaticResource PanelAltBrush}"/>
                     <CheckBox Content="Test mode (no hardware)" IsChecked="{Binding TestMode}"
-                              VerticalAlignment="Center" Margin="8,0,16,0"
+                              VerticalAlignment="Center" Margin="0,0,16,0"
                               ToolTip="Scramble and solve on the digital cube only. No Maestro, webcam, or robot motion."/>
                     <Button Content="Refresh devices" Command="{Binding RefreshDevicesCommand}" Background="{StaticResource PanelAltBrush}"/>
                     <Button Content="Connect" Command="{Binding ConnectCommand}" Background="{StaticResource BlueBrush}"/>
@@ -48,15 +44,19 @@
                     <TextBlock Grid.Column="1" Text="{Binding CameraResolution, StringFormat=Camera {0}}" Foreground="{StaticResource MutedBrush}"/>
                 </Grid>
                 <ProgressBar Value="{Binding Progress}" Maximum="1" Margin="0,8,0,12"/>
-                <StackPanel Orientation="Horizontal">
+                <WrapPanel>
                     <Button Content="Load" Command="{Binding LoadCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
                     <Button Content="Unload" Command="{Binding UnloadCommand}" Background="{StaticResource PanelAltBrush}"/>
                     <Button Content="Start" Command="{Binding StartCommand}" Background="{StaticResource AccentBrush}"/>
+                    <Button Content="Scramble" Command="{Binding ScrambleCommand}" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"
+                            ToolTip="Hug and run a random 20-move scramble on the cube."/>
+                    <Button Content="Zen Mode" Command="{Binding ZenModeCommand}" Background="{StaticResource ZenBrush}"
+                            ToolTip="Scan, solve, retract left/right/top to display, wait 15 seconds, scramble, and repeat. If a scan is already solved, scramble first. Stop to end."/>
                     <Button Content="Stop" Command="{Binding StopCommand}" Background="{StaticResource StopBrush}"/>
                     <Button Content="Camera" Command="{Binding CameraPreviewPoseCommand}" Background="{StaticResource BlueBrush}"/>
                     <Button Content="Servos off" Command="{Binding ServosOffCommand}" Background="{StaticResource PanelAltBrush}"/>
                     <Button Content="Solve net" Command="{Binding SolveNetCommand}" Background="{StaticResource PanelAltBrush}" Margin="0"/>
-                </StackPanel>
+                </WrapPanel>
             </StackPanel>
         </Border>
 
@@ -73,9 +73,10 @@
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="WEBCAM" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                <Button DockPanel.Dock="Right" Content="Use" Command="{Binding ApplyCameraCommand}"
-                                        Background="{StaticResource BlueBrush}" MinWidth="64" Margin="8,0,0,0"/>
-                                <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"/>
+                                <Button DockPanel.Dock="Right" Content="Use camera" Command="{Binding ApplyCameraCommand}"
+                                        Background="{StaticResource BlueBrush}" MinWidth="110" Margin="8,0,0,0"/>
+                                <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"
+                                          ToolTip="Choose the robot webcam"/>
                             </DockPanel>
                             <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
                                 <Image Source="{Binding CameraImage}" Stretch="Uniform"/>
@@ -117,12 +118,8 @@
                     <StackPanel>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="Pololu Mini Maestro 12 — USB Dual Port Command Port" FontWeight="SemiBold"/>
-                                <TextBlock Text="Values are pulse widths in microseconds from Maestro Control Center. Even channels are grippers, odd channels are rack-and-pinion arms. Port 9 is the bottom arm (the original screenshot labeled it Arm Left twice)." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
-                                <DockPanel Margin="0,0,0,8">
-                                    <TextBlock Text="Webcam" Width="120" VerticalAlignment="Center"/>
-                                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}"/>
-                                </DockPanel>
+                                <TextBlock Text="Servo calibration" FontWeight="SemiBold"/>
+                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock Text="Serial port" Width="120" VerticalAlignment="Center"/>
                                     <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedPort}" DisplayMemberPath="Caption"/>

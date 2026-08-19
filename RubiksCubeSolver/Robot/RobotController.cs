@@ -120,6 +120,16 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
+    public async Task DisplayAsync(CancellationToken cancellationToken)
+    {
+        NeutralGrippers();
+        SetArm(_settings.BottomArm, inside: true);
+        SetArm(_settings.LeftArm, inside: false);
+        SetArm(_settings.RightArm, inside: false);
+        SetArm(_settings.TopArm, inside: false);
+        await WaitAsync(cancellationToken);
+    }
+
     public async Task PreviewPoseAsync(CancellationToken cancellationToken)
     {
         NeutralGrippers();
