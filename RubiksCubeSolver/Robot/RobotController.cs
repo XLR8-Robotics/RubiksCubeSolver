@@ -146,7 +146,7 @@ public sealed class RobotController : IDisposable
     public async Task PitchAsync(CancellationToken cancellationToken)
     {
         await HoldLeftRightAsync(cancellationToken);
-        TurnGripperPair(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch);
+        TurnPitchPair();
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
@@ -162,7 +162,7 @@ public sealed class RobotController : IDisposable
     public async Task YawAsync(CancellationToken cancellationToken)
     {
         await HoldTopBottomAsync(cancellationToken);
-        TurnGripperPair(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw);
+        TurnYawPair();
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
@@ -300,6 +300,16 @@ public sealed class RobotController : IDisposable
     }
 
     void NeutralGripper(GripperCalibration gripper) => SetGripper(gripper, turned: false);
+
+    void TurnPitchPair()
+    {
+        TurnGripperPair(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch);
+    }
+
+    void TurnYawPair()
+    {
+        TurnGripperPair(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw);
+    }
 
     void TurnGripperPair(GripperCalibration a, GripperCalibration b, bool invertDirection)
     {

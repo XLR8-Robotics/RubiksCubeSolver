@@ -119,7 +119,7 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock Text="Servo calibration" FontWeight="SemiBold"/>
-                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
+                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms. Other way is the tumble direction (default 2496). In Maestro Control Center set each turner channel min/max to 496–2496 or the board will ignore it." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock Text="Serial port" Width="120" VerticalAlignment="Center"/>
                                     <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedPort}" DisplayMemberPath="Caption"/>
@@ -154,7 +154,9 @@
                                         <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.RightTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
                                         <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
-                                        <TextBox Text="{Binding Settings.RightTurner.EndUs}" Width="70"/>
+                                        <TextBox Text="{Binding Settings.RightTurner.EndUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Other way" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.RightTurner.OppositeEndUs}" Width="70"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -180,7 +182,9 @@
                                         <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.TopTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
                                         <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
-                                        <TextBox Text="{Binding Settings.TopTurner.EndUs}" Width="70"/>
+                                        <TextBox Text="{Binding Settings.TopTurner.EndUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Other way" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.TopTurner.OppositeEndUs}" Width="70"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -206,7 +210,9 @@
                                         <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.LeftTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
                                         <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
-                                        <TextBox Text="{Binding Settings.LeftTurner.EndUs}" Width="70"/>
+                                        <TextBox Text="{Binding Settings.LeftTurner.EndUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Other way" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.LeftTurner.OppositeEndUs}" Width="70"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -232,7 +238,9 @@
                                         <TextBlock Text="Start" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.BottomTurner.StartUs}" Width="70" Margin="0,0,12,4"/>
                                         <TextBlock Text="Turn end" Width="70" VerticalAlignment="Center"/>
-                                        <TextBox Text="{Binding Settings.BottomTurner.EndUs}" Width="70"/>
+                                        <TextBox Text="{Binding Settings.BottomTurner.EndUs}" Width="70" Margin="0,0,12,4"/>
+                                        <TextBlock Text="Other way" Width="70" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding Settings.BottomTurner.OppositeEndUs}" Width="70"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
