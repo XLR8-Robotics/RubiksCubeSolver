@@ -89,7 +89,12 @@ public sealed class RobotController : IDisposable
 
     public CubeOrientation Orientation { get; private set; }
 
-    public void ResetOrientation() => Orientation = CubeOrientation.Home();
+    public void ResetOrientation()
+    {
+        Orientation = CubeOrientation.Home();
+        YawTurnersHomed = true;
+        PitchTurnersHomed = true;
+    }
 
     public void ConfigureChannels()
     {
@@ -300,6 +305,7 @@ public sealed class RobotController : IDisposable
         SetArm(_settings.BottomArm, inside: true);
         await WaitAsync(cancellationToken);
         await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
+        await Task.Delay(Math.Max(150, _settings.SettleMs), cancellationToken);
         SetArm(_settings.LeftArm, inside: true, squeeze: true);
         SetArm(_settings.RightArm, inside: true, squeeze: true);
         await WaitAsync(cancellationToken);
@@ -318,7 +324,7 @@ public sealed class RobotController : IDisposable
 
     public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
     {
-        if (!PairCommandedAtStart(_settings.LeftTurner, _settings.RightTurner))
+        if (opposite || !PitchTurnersHomed)
         {
             await ResetPitchTurnersForScanAsync(cancellationToken);
         }
@@ -348,6 +354,8 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
         NeutralGrippers();
         await WaitAsync(cancellationToken);
+        YawTurnersHomed = true;
+        PitchTurnersHomed = true;
     }
 
     async Task RetractThenHomeTurnersAsync(
@@ -358,27 +366,26 @@ public sealed class RobotController : IDisposable
         SetArm(armA, inside: false);
         SetArm(armB, inside: false);
         await WaitAsync(cancellationToken);
+        await Task.Delay(Math.Max(200, _settings.SettleMs), cancellationToken);
         await ReversePairToStartAsync(turnerA, turnerB, cancellationToken);
     }
 
-    double _lastTumbleTargetA = double.NaN;
-    double _lastTumbleTargetB = double.NaN;
-    GripperCalibration? _lastTumbleA;
-    GripperCalibration? _lastTumbleB;
+    bool YawTurnersHomed { get; set; } = true;
+    bool PitchTurnersHomed { get; set; } = true;
+
+    const double ServoMinUs = 256;
+    const double ServoMaxUs = 2496;
 
     async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0)
     {
         var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection, extraUs);
-        _lastTumbleA = a;
-        _lastTumbleB = b;
-        _lastTumbleTargetA = targetA;
-        _lastTumbleTargetB = targetB;
         MatchPairSpeeds(a, b, a.StartUs, b.StartUs, targetA, targetB);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
         await WaitForPairMoveAsync(Math.Max(Math.Abs(targetA - a.StartUs), Math.Abs(targetB - b.StartUs)), cancellationToken);
         ConfigureGripper(a);
         ConfigureGripper(b);
+        MarkPairHomed(a, b, homed: false);
     }
 
     async Task ReversePairToStartAsync(GripperCalibration a, GripperCalibration b, CancellationToken cancellationToken)
@@ -394,23 +401,32 @@ public sealed class RobotController : IDisposable
         await Task.Delay(Math.Max(80, _settings.SettleMs), cancellationToken);
         ConfigureGripper(a);
         ConfigureGripper(b);
-        _lastTumbleA = a;
-        _lastTumbleB = b;
-        _lastTumbleTargetA = a.StartUs;
-        _lastTumbleTargetB = b.StartUs;
+        MarkPairHomed(a, b, homed: true);
     }
 
-    const double ServoMinUs = 256;
-    const double ServoMaxUs = 2496;
+    void MarkPairHomed(GripperCalibration a, GripperCalibration b, bool homed)
+    {
+        if (ReferenceEquals(a, _settings.TopTurner) || ReferenceEquals(b, _settings.TopTurner)
+            || ReferenceEquals(a, _settings.BottomTurner) || ReferenceEquals(b, _settings.BottomTurner))
+        {
+            YawTurnersHomed = homed;
+        }
+
+        if (ReferenceEquals(a, _settings.LeftTurner) || ReferenceEquals(b, _settings.LeftTurner)
+            || ReferenceEquals(a, _settings.RightTurner) || ReferenceEquals(b, _settings.RightTurner))
+        {
+            PitchTurnersHomed = homed;
+        }
+    }
 
     bool PairCommandedAtStart(GripperCalibration a, GripperCalibration b)
     {
-        if (!ReferenceEquals(_lastTumbleA, a) || !ReferenceEquals(_lastTumbleB, b))
+        if (ReferenceEquals(a, _settings.TopTurner) || ReferenceEquals(b, _settings.TopTurner))
         {
-            return true;
+            return YawTurnersHomed;
         }
 
-        return Math.Abs(_lastTumbleTargetA - a.StartUs) < 40 && Math.Abs(_lastTumbleTargetB - b.StartUs) < 40;
+        return PitchTurnersHomed;
     }
 
     (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
