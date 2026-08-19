@@ -43,8 +43,10 @@ public sealed class RobotController : IDisposable
         _pitchReturn = new ScanPitchReturnToFrontCommand(_actuator);
         _finishHug = new ScanFinishHugCommand(_actuator, _hug);
 
-        _quarterTurn = new QuarterTurnStationCommand(_actuator);
-        _turnCubeFace = new TurnCubeFaceCommand(_actuator, _hug, _pitchToTop, _pitchToBottom, _pitchReturn, _quarterTurn);
+        var prepareTopBottomTurn = new PrepareForTopBottomTurnCommand(_actuator);
+        var prepareLeftRightTurn = new PrepareForLeftRightTurnCommand(_actuator);
+        _quarterTurn = new QuarterTurnStationCommand(_actuator, prepareTopBottomTurn, prepareLeftRightTurn);
+        _turnCubeFace = new TurnCubeFaceCommand(_actuator, _hug, secureRl, _pitchReturn, _quarterTurn);
         _display = new DisplayCommand(_actuator);
     }
 
