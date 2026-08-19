@@ -1004,7 +1004,7 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        async Task CapturePitchedFaceAsync(string label)
+        async Task CapturePitchedFaceAsync(string label, CancellationToken ct)
         {
             var face = _robot!.CurrentCameraFace;
             var name = face switch
@@ -1019,7 +1019,7 @@ public partial class MainViewModel : ObservableObject
                     $"Pitch {label} left {face} at the camera — expected TOP or BOTTOM.");
             }
 
-            await CaptureFaceAsync(face, name);
+            await CaptureFaceAsync(face, name, ct);
             AppendLog($"STATE after {name} photo: CURRENT_FACE={_robot.CurrentCameraFace}");
         }
 
