@@ -119,7 +119,7 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock Text="Servo calibration" FontWeight="SemiBold"/>
-                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms. Dual tumbles move one gripper to Turn end and the other the same distance below Start. In Maestro Control Center set turner min/max to 496–2496 so the downward 90° is not clipped." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
+                                <TextBlock Text="Pulse widths in microseconds. Even channels are grippers, odd channels are arms. Dual tumbles move one gripper to Turn end and the other the same distance below Start. For a full 90° pitch, set left/right turner min to 256 in Maestro Control Center so the downward gripper is not clipped at 496." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"/>
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock Text="Serial port" Width="120" VerticalAlignment="Center"/>
                                     <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedPort}" DisplayMemberPath="Caption"/>
@@ -140,8 +140,11 @@
                                     <TextBlock Text="Settle ms" Width="80" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.SettleMs}" Width="80" Margin="0,0,16,0"/>
                                     <TextBlock Text="Tumble squeeze" Width="110" VerticalAlignment="Center"/>
-                                    <TextBox Text="{Binding Settings.TumbleSqueezeUs}" Width="80"
+                                    <TextBox Text="{Binding Settings.TumbleSqueezeUs}" Width="80" Margin="0,0,16,0"
                                              ToolTip="Extra microseconds past In when two grippers roll together, so the center turns with the cube."/>
+                                    <TextBlock Text="Pitch extra µs" Width="110" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.PitchExtraUs}" Width="80"
+                                             ToolTip="Extra travel on left/right tumble so Top and Bottom square up to 90°. Try 80–150 if pitch still stops short."/>
                                 </StackPanel>
                                 <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" Background="{StaticResource AccentBrush}" HorizontalAlignment="Left"/>
                             </StackPanel>

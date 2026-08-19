@@ -147,7 +147,7 @@ public sealed class RobotController : IDisposable
     {
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken);
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         ArmsOut(_settings.LeftArm, _settings.RightArm);
@@ -320,8 +320,11 @@ public sealed class RobotController : IDisposable
     public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
     {
         var invert = _settings.InvertPitch ^ opposite;
-        await HoldLeftRightScanAsync(cancellationToken);
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken);
+        await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
+        SetArm(_settings.LeftArm, inside: true);
+        SetArm(_settings.RightArm, inside: true);
+        await WaitAsync(cancellationToken);
         Orientation.Pitch(invert);
     }
 
@@ -351,9 +354,9 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken)
+    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0)
     {
-        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection);
+        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection, extraUs);
         MatchPairSpeeds(a, b, targetA, targetB);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
@@ -362,11 +365,13 @@ public sealed class RobotController : IDisposable
         ConfigureGripper(b);
     }
 
-    static (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection)
+    const double ServoMinUs = 256;
+    const double ServoMaxUs = 2496;
+
+    static (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
     {
         var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        mag = Math.Min(mag, Headroom(a.StartUs));
-        mag = Math.Min(mag, Headroom(b.StartUs));
+        mag += Math.Max(0, extraUs);
         mag = Math.Max(mag, 1);
 
         var signA = Math.Sign(a.EndUs - a.StartUs);
@@ -376,10 +381,8 @@ public sealed class RobotController : IDisposable
 
         var targetA = a.StartUs + (invertDirection ? -signA : signA) * mag;
         var targetB = b.StartUs + (invertDirection ? signB : -signB) * mag;
-        return (Math.Clamp(targetA, 496, 2496), Math.Clamp(targetB, 496, 2496));
+        return (Math.Clamp(targetA, ServoMinUs, ServoMaxUs), Math.Clamp(targetB, ServoMinUs, ServoMaxUs));
     }
-
-    static double Headroom(double startUs) => Math.Min(startUs - 496, 2496 - startUs);
 
     void MatchPairSpeeds(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
     {

@@ -14,7 +14,7 @@ public sealed class GripperCalibration
     public double MirroredEndUs()
     {
         var target = StartUs - (EndUs - StartUs);
-        return Math.Clamp(target, 496, 2496);
+        return Math.Clamp(target, 256, 2496);
     }
 }
 
@@ -42,6 +42,7 @@ public sealed class AppSettings
     public bool TestMode { get; set; }
     public int ZenDisplaySeconds { get; set; } = 15;
     public int TumbleSqueezeUs { get; set; } = 150;
+    public int PitchExtraUs { get; set; } = 100;
     public int SettleMs { get; set; } = 120;
     public int MovementTimeoutMs { get; set; } = 4000;
     public int CalibrationVersion { get; set; }
