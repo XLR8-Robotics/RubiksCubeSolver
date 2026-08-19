@@ -572,8 +572,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         EnsureRobot();
-        AppendLog("Hugging cube to scramble...");
-        await _robot!.HugAsync(cancellationToken);
+        AppendLog("Holding cube to scramble...");
+        await _robot!.ArmsInHoldAsync(cancellationToken);
 
         var steps = _robot.CreateGrippedScramble(20);
         var scramble = steps.Select(step => step.Move).ToList();
@@ -591,7 +591,7 @@ public partial class MainViewModel : ObservableObject
             await robotMove;
         }
 
-        await _robot.HugAsync(cancellationToken);
+        await _robot.ArmsInHoldAsync(cancellationToken);
         AppendLog("Scramble complete.");
         StatusText = "Scrambled";
     }

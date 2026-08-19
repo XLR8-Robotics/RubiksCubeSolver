@@ -120,6 +120,12 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
+    public async Task ArmsInHoldAsync(CancellationToken cancellationToken)
+    {
+        AllArmsIn();
+        await WaitAsync(cancellationToken);
+    }
+
     public async Task DisplayAsync(CancellationToken cancellationToken)
     {
         NeutralGrippers();
@@ -231,37 +237,26 @@ public sealed class RobotController : IDisposable
 
     async Task QuarterTurnStationAsync(RobotStation station, CancellationToken cancellationToken)
     {
-        var (turner, arm, oppositeArm, oppositeGripper, adjA, adjB, adjGripA, adjGripB) = station switch
+        var (turner, arm) = station switch
         {
-            RobotStation.Right => (_settings.RightTurner, _settings.RightArm, _settings.LeftArm, _settings.LeftTurner, _settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner),
-            RobotStation.Left => (_settings.LeftTurner, _settings.LeftArm, _settings.RightArm, _settings.RightTurner, _settings.TopArm, _settings.BottomArm, _settings.TopTurner, _settings.BottomTurner),
-            RobotStation.Top => (_settings.TopTurner, _settings.TopArm, _settings.BottomArm, _settings.BottomTurner, _settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner),
-            _ => (_settings.BottomTurner, _settings.BottomArm, _settings.TopArm, _settings.TopTurner, _settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner)
+            RobotStation.Right => (_settings.RightTurner, _settings.RightArm),
+            RobotStation.Left => (_settings.LeftTurner, _settings.LeftArm),
+            RobotStation.Top => (_settings.TopTurner, _settings.TopArm),
+            _ => (_settings.BottomTurner, _settings.BottomArm)
         };
 
-        NeutralGripper(oppositeGripper);
-        NeutralGripper(adjGripA);
-        NeutralGripper(adjGripB);
-        NeutralGripper(turner);
-        SetArm(oppositeArm, inside: true);
-        SetArm(adjA, inside: false);
-        SetArm(adjB, inside: false);
         SetArm(arm, inside: true);
         await WaitAsync(cancellationToken);
 
         SetGripper(turner, turned: true);
         await WaitAsync(cancellationToken);
 
-        NeutralGripper(adjGripA);
-        NeutralGripper(adjGripB);
-        SetArm(adjA, inside: true);
-        SetArm(adjB, inside: true);
-        await WaitAsync(cancellationToken);
-
         SetArm(arm, inside: false);
         await WaitAsync(cancellationToken);
+
         NeutralGripper(turner);
         await WaitAsync(cancellationToken);
+
         SetArm(arm, inside: true);
         await WaitAsync(cancellationToken);
     }
