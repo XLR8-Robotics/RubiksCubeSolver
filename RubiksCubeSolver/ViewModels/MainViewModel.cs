@@ -930,7 +930,7 @@ public partial class MainViewModel : ObservableObject
         var map = new Dictionary<CubeFace, Scalar[]>();
         var frameCount = Math.Clamp(Settings.ScanFramesPerFace, 1, 12);
         var frameGapMs = Math.Clamp(Settings.ScanFrameGapMs, 40, 1000);
-        AppendLog($"Scan: F → R → B → L chained ({frameCount} frames/hold). Turner home after each side, no FRONT rewind.");
+        AppendLog($"Scan: F → R → B → L, then pitch U/D both ways ({frameCount} frames/hold).");
 
         void LogState(string step)
         {
@@ -1008,6 +1008,25 @@ public partial class MainViewModel : ObservableObject
             AppendLog($"Stored {face} ({label}) — merged TB+RL holds.");
         }
 
+        async Task CapturePitchedFaceAsync(string label)
+        {
+            var face = _robot!.CurrentCameraFace;
+            var name = face switch
+            {
+                CubeFace.U => "TOP",
+                CubeFace.D => "BOTTOM",
+                _ => face.ToString()
+            };
+            if (face is not CubeFace.U and not CubeFace.D)
+            {
+                throw new InvalidOperationException(
+                    $"Pitch {label} left {face} at the camera — expected TOP or BOTTOM.");
+            }
+
+            await CaptureFaceAsync(face, name);
+            LogState($"{name} photo");
+        }
+
         _robot!.ResetOrientation();
         AppendLog("START: CURRENT_FACE=FRONT, RL_IN, TB_IN, turners reset.");
 
@@ -1035,24 +1054,31 @@ public partial class MainViewModel : ObservableObject
         await _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
         LogState("back at FRONT for pitch");
 
-        AppendLog("TOP: RL secure, TB clear, pitch up");
+        AppendLog("U/D: pitch 90°, photo, unwind back to FRONT (keep RL hold)");
         await _robot.ScanPitchToTopAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.U, "TOP");
-        LogState("TOP photo");
+        await CapturePitchedFaceAsync("first pitch");
+        await _robot.ScanPitchReturnToFrontAsync(cancellationToken);
+        LogState("back at FRONT after first pitch");
 
-        AppendLog("BOTTOM: 2× pitch 90° (TOP→BACK→BOTTOM), retract + unwind between");
-        await _robot.ScanPitchTopToBottomAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.D, "BOTTOM");
-        LogState("BOTTOM photo");
+        AppendLog("U/D: pitch 90° the other way, photo, unwind back to FRONT");
+        await _robot.ScanPitchToBottomAsync(cancellationToken);
+        await CapturePitchedFaceAsync("other way");
+        await _robot.ScanPitchReturnToFrontAsync(cancellationToken);
+        LogState("back at FRONT after second pitch");
 
-        AppendLog("FINISH: 1× pitch 90° BOTTOM → FRONT, hug");
-        await _robot.ScanPitchRestoreFrontAsync(cancellationToken);
+        AppendLog("FINISH: hug at FRONT, then solve");
         await _robot.ScanFinishHugAtFrontAsync(cancellationToken);
         LogState("scan complete");
 
         if (_robot.CurrentCameraFace != CubeFace.F)
         {
             AppendLog($"WARNING: scan ended with {_robot.CurrentCameraFace} at camera (expected FRONT).");
+        }
+
+        if (!map.ContainsKey(CubeFace.U) || !map.ContainsKey(CubeFace.D))
+        {
+            throw new InvalidOperationException(
+                "Scan missed TOP or BOTTOM — both pitch directions must photograph a face.");
         }
 
         return

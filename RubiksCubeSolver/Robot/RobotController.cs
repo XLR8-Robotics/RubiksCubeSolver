@@ -619,17 +619,34 @@ public sealed class RobotController : IDisposable
         CommandAsync("RL secure, TB clear, yaw home at FRONT", ScanYawTurnersHomeKeepFaceCoreAsync, cancellationToken);
 
     public Task ScanPitchTurnersHomeKeepFaceAsync(CancellationToken cancellationToken) =>
-        CommandAsync("RL secure, TB clear, pitch home (keep face)", ScanPitchTurnersHomeKeepFaceCoreAsync, cancellationToken);
+        ScanPitchReturnToFrontAsync(cancellationToken);
 
-    async Task ScanPitchTurnersHomeKeepFaceCoreAsync(CancellationToken cancellationToken)
+    public Task ScanPitchReturnToFrontAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL hold, TB clear, pitch unwind → FRONT", ScanPitchReturnToFrontCoreAsync, cancellationToken);
+
+    async Task ScanPitchReturnToFrontCoreAsync(CancellationToken cancellationToken)
     {
         await HoldYawTurnersStillAsync(cancellationToken);
         await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
         await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
         await TopBottomOutAsync(cancellationToken);
         await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
-        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
-        await PitchTurnersToStartAsync(cancellationToken);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+
+        var faceAtCamera = Orientation.Front;
+        await ReversePairToStartAsync(_settings.LeftTurner, _settings.RightTurner, cancellationToken);
+        await WaitUntilPairNearStartAsync(_settings.LeftTurner, _settings.RightTurner, cancellationToken);
+        PitchTurnersHomed = true;
+
+        if (faceAtCamera == CubeFace.U)
+        {
+            Orientation.Pitch(true);
+        }
+        else if (faceAtCamera == CubeFace.D)
+        {
+            Orientation.Pitch(false);
+        }
+
         await HoldPitchTurnersStillAsync(cancellationToken);
     }
 
@@ -740,14 +757,7 @@ public sealed class RobotController : IDisposable
         }, cancellationToken);
 
     public Task ScanPitchRestoreFrontAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Pitch BOTTOM → FRONT (1×90° same dir)", async ct =>
-        {
-            await ScanSecureRlThenTbClearAsync(ct);
-            await HoldPitchTurnersStillAsync(ct);
-            await SpinPairPitchFromCurrentAsync(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch, ct, _settings.PitchExtraUs);
-            Orientation.Pitch(_settings.InvertPitch);
-            await Task.Delay(Math.Max(400, _settings.SettleMs * 3), ct);
-        }, cancellationToken);
+        ScanPitchReturnToFrontAsync(cancellationToken);
 
     public Task ScanRestoreFrontAfterPitchAsync(CancellationToken cancellationToken) =>
         ScanPitchRestoreFrontAsync(cancellationToken);
