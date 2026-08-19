@@ -185,6 +185,35 @@ public static class FaceScanner
         }
     }
 
+    public static Scalar[] MergeDualHold(Scalar[] topBottomHold, Scalar[] leftRightHold)
+    {
+        var merged = new Scalar[9];
+        for (int i = 0; i < 9; i++)
+        {
+            merged[i] = i switch
+            {
+                1 or 7 => leftRightHold[i],
+                3 or 5 => topBottomHold[i],
+                4 => Average(topBottomHold[i], leftRightHold[i]),
+                _ => HigherChroma(topBottomHold[i], leftRightHold[i])
+            };
+        }
+
+        return merged;
+    }
+
+    static Scalar Average(Scalar a, Scalar b) =>
+        new((a.Val0 + b.Val0) / 2, (a.Val1 + b.Val1) / 2, (a.Val2 + b.Val2) / 2);
+
+    static Scalar HigherChroma(Scalar a, Scalar b) => Chroma(a) >= Chroma(b) ? a : b;
+
+    static double Chroma(Scalar bgr)
+    {
+        var max = Math.Max(bgr.Val0, Math.Max(bgr.Val1, bgr.Val2));
+        var min = Math.Min(bgr.Val0, Math.Min(bgr.Val1, bgr.Val2));
+        return max - min;
+    }
+
     public static Scalar[] RotateSamples(Scalar[] samples, int ccw90Turns)
     {
         var grid = samples.ToArray();

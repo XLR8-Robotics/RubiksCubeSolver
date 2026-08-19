@@ -143,10 +143,11 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    public async Task PitchAsync(CancellationToken cancellationToken)
+    public async Task PitchAsync(CancellationToken cancellationToken, bool opposite = false)
     {
+        var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken);
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch, cancellationToken);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         ArmsOut(_settings.LeftArm, _settings.RightArm);
@@ -155,13 +156,14 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
-        Orientation.Pitch(_settings.InvertPitch);
+        Orientation.Pitch(invert);
     }
 
-    public async Task YawAsync(CancellationToken cancellationToken)
+    public async Task YawAsync(CancellationToken cancellationToken, bool opposite = false)
     {
+        var invert = _settings.InvertYaw ^ opposite;
         await HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken);
-        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, _settings.InvertYaw, cancellationToken);
+        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         ArmsOut(_settings.TopArm, _settings.BottomArm);
@@ -170,7 +172,7 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
-        Orientation.Yaw(_settings.InvertYaw);
+        Orientation.Yaw(invert);
     }
 
     public async Task TurnCubeFaceAsync(CubeMove move, CancellationToken cancellationToken)
@@ -259,14 +261,20 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    async Task HoldPairAsync(ArmCalibration holdA, ArmCalibration holdB, ArmCalibration clearA, ArmCalibration clearB, CancellationToken cancellationToken)
+    async Task HoldPairAsync(ArmCalibration holdA, ArmCalibration holdB, ArmCalibration clearA, ArmCalibration clearB, CancellationToken cancellationToken, bool squeeze = true)
     {
-        SetArm(holdA, inside: true, squeeze: true);
-        SetArm(holdB, inside: true, squeeze: true);
+        SetArm(holdA, inside: true, squeeze: squeeze);
+        SetArm(holdB, inside: true, squeeze: squeeze);
         SetArm(clearA, inside: false);
         SetArm(clearB, inside: false);
         await WaitAsync(cancellationToken);
     }
+
+    public Task HoldTopBottomScanAsync(CancellationToken cancellationToken) =>
+        HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken, squeeze: false);
+
+    public Task HoldLeftRightScanAsync(CancellationToken cancellationToken) =>
+        HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: false);
 
     async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken)
     {

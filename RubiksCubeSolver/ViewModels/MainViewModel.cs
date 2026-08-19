@@ -684,37 +684,50 @@ public partial class MainViewModel : ObservableObject
         {
             cancellationToken.ThrowIfCancellationRequested();
             StatusText = $"Photographing {homeFace}";
-            AppendLog($"Photographing {homeFace} (two frames)...");
-            Scalar[]? samples = null;
-            for (int n = 0; n < 2; n++)
+            AppendLog($"Photographing {homeFace} (top/bottom hold, then left/right hold, merge)...");
+
+            await _robot!.HoldTopBottomScanAsync(cancellationToken);
+            Scalar[] topBottom;
+            using (var frame = await _webcam.GrabSettledAsync(Settings.VideoDurationMs, Settings.RotatePhotos180, cancellationToken)
+                               ?? throw new InvalidOperationException("Camera frame was empty."))
             {
-                using var frame = await _webcam.GrabSettledAsync(n == 0 ? Settings.VideoDurationMs : 250, Settings.RotatePhotos180, cancellationToken)
-                                  ?? throw new InvalidOperationException("Camera frame was empty.");
                 var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
                 ShowFrame(sampled.Preview);
-                samples = FaceScanner.RotateSamples(sampled.Samples, rotateCcw);
+                topBottom = sampled.Samples;
                 sampled.Preview.Dispose();
             }
 
-            map[homeFace] = samples!;
-            var guessed = samples!.Select(ColorClassifier.Guess).ToArray();
+            await _robot.HoldLeftRightScanAsync(cancellationToken);
+            Scalar[] leftRight;
+            using (var frame = await _webcam.GrabSettledAsync(250, Settings.RotatePhotos180, cancellationToken)
+                               ?? throw new InvalidOperationException("Camera frame was empty."))
+            {
+                var sampled = FaceScanner.Sample(frame, Settings.FaceMargin);
+                ShowFrame(sampled.Preview);
+                leftRight = sampled.Samples;
+                sampled.Preview.Dispose();
+            }
+
+            var samples = FaceScanner.RotateSamples(FaceScanner.MergeDualHold(topBottom, leftRight), rotateCcw);
+            map[homeFace] = samples;
+            var guessed = samples.Select(ColorClassifier.Guess).ToArray();
             ApplyFace(homeFace, guessed);
         }
 
         await Capture(CubeFace.F, 0);
-        await _robot!.PitchAsync(cancellationToken);
+        await _robot!.YawAsync(cancellationToken, opposite: true);
+        await Capture(CubeFace.L, 0);
+        await _robot.YawAsync(cancellationToken, opposite: true);
+        await Capture(CubeFace.B, 0);
+        await _robot.YawAsync(cancellationToken, opposite: true);
+        await Capture(CubeFace.R, 0);
+        await _robot.YawAsync(cancellationToken, opposite: true);
+        await _robot.PitchAsync(cancellationToken);
         await Capture(CubeFace.U, 0);
-        await _robot.PitchAsync(cancellationToken);
-        await Capture(CubeFace.B, 2);
-        await _robot.PitchAsync(cancellationToken);
+        await _robot.PitchAsync(cancellationToken, opposite: true);
+        await _robot.PitchAsync(cancellationToken, opposite: true);
         await Capture(CubeFace.D, 0);
         await _robot.PitchAsync(cancellationToken);
-        await _robot.YawAsync(cancellationToken);
-        await Capture(CubeFace.R, 0);
-        await _robot.YawAsync(cancellationToken);
-        await _robot.YawAsync(cancellationToken);
-        await Capture(CubeFace.L, 0);
-        await _robot.YawAsync(cancellationToken);
 
         return
         [
