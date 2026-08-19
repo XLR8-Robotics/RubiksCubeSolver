@@ -474,6 +474,72 @@ public sealed class RobotController : IDisposable
     public Task FinishScanHugAsync(CancellationToken cancellationToken) =>
         SequenceScanHugAsync(cancellationToken);
 
+    public Task ScanRlOutTbOutAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL_OUT, TB_OUT", async ct =>
+        {
+            await LeftRightOutAsync(ct);
+            await TopBottomOutAsync(ct);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
+        }, cancellationToken);
+
+    public Task ScanRlInTbInAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL_IN, TB_IN", async ct =>
+        {
+            await LeftRightInAsync(ct, squeeze: false);
+            await TopBottomInAsync(ct, squeeze: false);
+            await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
+        }, cancellationToken);
+
+    public Task ScanTurnRight90Async(CancellationToken cancellationToken) =>
+        CommandAsync("TURN_R_90", async ct =>
+        {
+            await TopBottomInAsync(ct, squeeze: false);
+            await LeftRightOutAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            var invert = _settings.InvertYaw;
+            if (PairNearStart(_settings.TopTurner, _settings.BottomTurner) != true)
+            {
+                OnCommand?.Invoke("TURN_R_90 blocked — top/bottom turners are not at Start");
+                return;
+            }
+
+            await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, ct, yawMatchedOpposite: true);
+            Orientation.Yaw(invert);
+        }, cancellationToken);
+
+    public Task ScanExposeSideForPhotoAsync(CancellationToken cancellationToken) =>
+        CommandAsync("TB_IN, RL_OUT (side clear)", async ct =>
+        {
+            await TopBottomInAsync(ct, squeeze: false);
+            await LeftRightOutAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
+        }, cancellationToken);
+
+    public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Pitch to TOP", ct => SequencePitch90Async(ct, opposite: false), cancellationToken);
+
+    public Task ScanPitchToBottomAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Pitch to BOTTOM", ct => SequencePitch90Async(ct, opposite: true), cancellationToken);
+
+    public Task ScanRestoreFrontAfterPitchAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Restore FRONT after pitch", ct => SequencePitchResetAsync(ct, resetCubeOrientation: true), cancellationToken);
+
+    public Task ScanFinishAtFrontAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Scan finish: FRONT, RL_IN, TB_IN", async ct =>
+        {
+            if (Orientation.Front != CubeFace.F)
+            {
+                OnCommand?.Invoke($"Expected FRONT at camera before finish (currently {Orientation.Front})");
+            }
+
+            await SequencePitchResetAsync(ct, resetCubeOrientation: true);
+            await LeftRightInAsync(ct, squeeze: false);
+            await TopBottomInAsync(ct, squeeze: false);
+        }, cancellationToken);
+
+    public CubeFace CurrentCameraFace => Orientation.Front;
+
     async Task CommandAsync(string name, Func<CancellationToken, Task> command, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
