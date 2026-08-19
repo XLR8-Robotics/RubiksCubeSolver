@@ -268,11 +268,11 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    public Task TopBottomInAsync(CancellationToken cancellationToken, bool squeeze = true) =>
+    public Task TopBottomInAsync(CancellationToken cancellationToken, bool squeeze = true, int? squeezeExtraUs = null) =>
         CommandAsync("Top/Bottom in", async ct =>
         {
-            SetArm(_settings.TopArm, inside: true, squeeze: squeeze);
-            SetArm(_settings.BottomArm, inside: true, squeeze: squeeze);
+            SetArm(_settings.TopArm, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
+            SetArm(_settings.BottomArm, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
             await WaitAsync(ct);
             await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
         }, cancellationToken);
@@ -285,11 +285,11 @@ public sealed class RobotController : IDisposable
             await WaitAsync(ct);
         }, cancellationToken);
 
-    public Task LeftRightInAsync(CancellationToken cancellationToken, bool squeeze = true) =>
+    public Task LeftRightInAsync(CancellationToken cancellationToken, bool squeeze = true, int? squeezeExtraUs = null) =>
         CommandAsync("Left/Right in", async ct =>
         {
-            SetArm(_settings.LeftArm, inside: true, squeeze: squeeze);
-            SetArm(_settings.RightArm, inside: true, squeeze: squeeze);
+            SetArm(_settings.LeftArm, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
+            SetArm(_settings.RightArm, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
             await WaitAsync(ct);
             await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
         }, cancellationToken);
@@ -385,7 +385,10 @@ public sealed class RobotController : IDisposable
     {
         await HoldPitchTurnersStillAsync(cancellationToken);
         await HoldYawTurnersStillAsync(cancellationToken);
-        await TopBottomInAsync(cancellationToken, squeeze: false);
+        await LeftRightInAsync(cancellationToken, squeeze: true);
+        await TopBottomOutAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
         await LeftRightOutAsync(cancellationToken, clearOfCube: true);
         await PitchTurnersToStartAsync(cancellationToken);
         await LeftRightInAsync(cancellationToken, squeeze: true);
@@ -474,47 +477,95 @@ public sealed class RobotController : IDisposable
     public Task FinishScanHugAsync(CancellationToken cancellationToken) =>
         SequenceScanHugAsync(cancellationToken);
 
-    public Task ScanRlOutTbOutAsync(CancellationToken cancellationToken) =>
-        CommandAsync("RL_OUT, TB_OUT", async ct =>
+    public Task ScanExposeTopBottomHoldForPhotoAsync(CancellationToken cancellationToken) =>
+        CommandAsync("TB_IN (squeeze), RL_OUT", async ct =>
         {
+            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
             await LeftRightOutAsync(ct);
-            await TopBottomOutAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
             await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
         }, cancellationToken);
 
-    public Task ScanRlInTbInAsync(CancellationToken cancellationToken) =>
-        CommandAsync("RL_IN, TB_IN", async ct =>
+    public Task ScanExposeLeftRightHoldForPhotoAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL_IN (squeeze), TB_OUT", async ct =>
         {
-            await LeftRightInAsync(ct, squeeze: false);
-            await TopBottomInAsync(ct, squeeze: false);
-            await Task.Delay(Math.Max(200, _settings.SettleMs), ct);
+            await LeftRightInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await TopBottomOutAsync(ct);
+            await HoldYawTurnersStillAsync(ct);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
         }, cancellationToken);
 
-    public Task ScanTurnRight90Async(CancellationToken cancellationToken) =>
-        CommandAsync("TURN_R_90", async ct =>
-        {
-            await TopBottomInAsync(ct, squeeze: false);
-            await LeftRightOutAsync(ct);
-            await HoldPitchTurnersStillAsync(ct);
-            var invert = _settings.InvertYaw;
-            if (PairNearStart(_settings.TopTurner, _settings.BottomTurner) != true)
-            {
-                OnCommand?.Invoke("TURN_R_90 blocked — top/bottom turners are not at Start");
-                return;
-            }
-
-            await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, ct, yawMatchedOpposite: true);
-            Orientation.Yaw(invert);
-        }, cancellationToken);
+    public Task ScanExposeForFacePhotoAsync(CubeFace face, CancellationToken cancellationToken) =>
+        ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
 
     public Task ScanExposeSideForPhotoAsync(CancellationToken cancellationToken) =>
-        CommandAsync("TB_IN, RL_OUT (side clear)", async ct =>
+        ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
+
+    public Task ScanPrepareForYawTurnAsync(CancellationToken cancellationToken) =>
+        CommandAsync("TB_IN (squeeze), RL_OUT — yaw grip", async ct =>
         {
-            await TopBottomInAsync(ct, squeeze: false);
+            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
             await LeftRightOutAsync(ct);
             await HoldPitchTurnersStillAsync(ct);
-            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
+            await Task.Delay(Math.Max(300, _settings.SettleMs * 2), ct);
         }, cancellationToken);
+
+    public Task ScanYawResetAfterPhotoAsync(CancellationToken cancellationToken) =>
+        CommandAsync("TB_OUT, yaw turners reset, TB_IN", ct =>
+            SequenceYawResetAsync(ct, resetCubeOrientation: true), cancellationToken);
+
+    public Task ScanYawTurnersHomeKeepFaceAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL_IN, TB_OUT, yaw home (keep face)", ct =>
+            SequenceYawResetAsync(ct, resetCubeOrientation: false), cancellationToken);
+
+    public Task ScanRetractTbBetweenTurnsAsync(CancellationToken cancellationToken) =>
+        CommandAsync("TB_OUT, hold yaw, TB_IN (between turns)", async ct =>
+        {
+            await TopBottomOutAsync(ct);
+            await Task.Delay(Math.Max(500, _settings.SettleMs * 3), ct);
+            await HoldYawTurnersStillAsync(ct);
+            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await LeftRightOutAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            await Task.Delay(Math.Max(300, _settings.SettleMs * 2), ct);
+        }, cancellationToken);
+
+    public Task ScanTurnRight90CountAsync(CancellationToken cancellationToken, int count) =>
+        CommandAsync(count == 1 ? "TURN_R_90" : $"TURN_R_90 ×{count}", async ct =>
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (i > 0)
+                {
+                    await ScanRetractTbBetweenTurnsAsync(ct);
+                }
+
+                await ScanPrepareForYawTurnAsync(ct);
+                var invert = _settings.InvertYaw;
+                if (i == 0 && PairNearStart(_settings.TopTurner, _settings.BottomTurner) != true)
+                {
+                    OnCommand?.Invoke("TURN_R_90 blocked — top/bottom turners are not at Start");
+                    return;
+                }
+
+                if (i == 0)
+                {
+                    await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, ct, yawMatchedOpposite: true);
+                }
+                else
+                {
+                    await SpinPairYawFromCurrentAsync(_settings.TopTurner, _settings.BottomTurner, invert, ct);
+                }
+
+                Orientation.Yaw(invert);
+            }
+        }, cancellationToken);
+
+    public Task ScanChainedTurnRight90Async(CancellationToken cancellationToken, bool firstInChain) =>
+        ScanTurnRight90CountAsync(cancellationToken, 1);
+
+    public Task ScanHandoffToPitchAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Handoff to pitch (RL_IN, TB_OUT, yaw home)", ct => SequenceHandoffToPitchAsync(ct), cancellationToken);
 
     public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
         CommandAsync("Pitch to TOP", ct => SequencePitch90Async(ct, opposite: false), cancellationToken);
@@ -576,9 +627,9 @@ public sealed class RobotController : IDisposable
     const double ServoMinUs = 256;
     const double ServoMaxUs = 2496;
 
-    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true, bool pitchMatchedOpposite = false, bool yawMatchedOpposite = false)
+    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true, bool pitchMatchedOpposite = false, bool yawMatchedOpposite = false, bool requireStartBeforeSpin = true)
     {
-        if (pitchMatchedOpposite || yawMatchedOpposite)
+        if ((pitchMatchedOpposite || yawMatchedOpposite) && requireStartBeforeSpin)
         {
             if (PairNearStart(a, b) != true)
             {
@@ -612,6 +663,38 @@ public sealed class RobotController : IDisposable
                 OnCommand?.Invoke($"Pair travel mismatch — blocking spin (Ch{a.Port} {travelA:F0} vs Ch{b.Port} {travelB:F0})");
                 return;
             }
+        }
+
+        MatchPairSpeeds(a, b, fromA, fromB, targetA, targetB);
+        SetGripperTarget(a, targetA);
+        SetGripperTarget(b, targetB);
+        await WaitForPairMoveAsync(Math.Max(travelA, travelB), cancellationToken);
+        ConfigureGripper(a);
+        ConfigureGripper(b);
+        SetGripperTarget(a, targetA);
+        SetGripperTarget(b, targetB);
+        MarkPairHomed(a, b, homed: false);
+    }
+
+    async Task SpinPairYawFromCurrentAsync(
+        GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken)
+    {
+        var fromA = _maestro.GetPositionMicroseconds(a.Port) ?? a.StartUs;
+        var fromB = _maestro.GetPositionMicroseconds(b.Port) ?? b.StartUs;
+        var (startTargetA, startTargetB) = PairDualTumbleTargets(a, b, invertDirection, 0);
+        var deltaA = startTargetA - a.StartUs;
+        var deltaB = startTargetB - b.StartUs;
+        var targetA = fromA + deltaA;
+        var targetB = fromB + deltaB;
+        var travelA = Math.Abs(deltaA);
+        var travelB = Math.Abs(deltaB);
+
+        OnCommand?.Invoke(
+            $"Ch{a.Port} {fromA:F0}→{targetA:F0} ({travelA:F0} µs), Ch{b.Port} {fromB:F0}→{targetB:F0} ({travelB:F0} µs) [chained]");
+        if (Math.Abs(travelA - travelB) > 25)
+        {
+            OnCommand?.Invoke($"Chained yaw blocked — travel mismatch (Ch{a.Port} {travelA:F0} vs Ch{b.Port} {travelB:F0})");
+            return;
         }
 
         MatchPairSpeeds(a, b, fromA, fromB, targetA, targetB);

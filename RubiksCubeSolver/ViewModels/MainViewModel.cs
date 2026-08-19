@@ -869,11 +869,22 @@ public partial class MainViewModel : ObservableObject
         var map = new Dictionary<CubeFace, Scalar[]>();
         var frameCount = Math.Clamp(Settings.ScanFramesPerFace, 1, 12);
         var frameGapMs = Math.Clamp(Settings.ScanFrameGapMs, 40, 1000);
-        AppendLog($"Scan sequence: F → R → B → L → F → U → D → F ({frameCount} frames/face).");
+        AppendLog($"Scan: F → R → B → L chained ({frameCount} frames/hold). Turner home after each side, no FRONT rewind.");
 
         void LogState(string step)
         {
             AppendLog($"STATE after {step}: CURRENT_FACE={_robot!.CurrentCameraFace}");
+        }
+
+        async Task TurnOnceDualPhotoTurnerHomeAsync(CubeFace face, string label)
+        {
+            AppendLog($"{label}: TURN_R_90");
+            await _robot!.ScanTurnRight90CountAsync(cancellationToken, 1);
+            AppendLog($"{label}: dual hold photo (TB hold + RL hold, merge)");
+            await CaptureFaceDualHoldAsync(face, label);
+            AppendLog($"{label}: RL_IN, TB_OUT, yaw turners home (keep {face} at camera)");
+            await _robot.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
+            LogState($"{label} photo");
         }
 
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
@@ -912,12 +923,35 @@ public partial class MainViewModel : ObservableObject
             AppendLog($"Stored {face} ({label}).");
         }
 
+        async Task CaptureFaceDualHoldAsync(CubeFace face, string label)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (map.ContainsKey(face))
+            {
+                throw new InvalidOperationException($"Face {face} was already scanned — sequence error at {label}.");
+            }
+
+            StatusText = $"Photographing {face} (TB hold)";
+            AppendLog($"PHOTO_{label}: TB hold, CURRENT_FACE={_robot!.CurrentCameraFace}, {frameCount} frames.");
+            await _robot.ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
+            var topBottomHold = await GrabFaceAsync(Settings.VideoDurationMs);
+
+            StatusText = $"Photographing {face} (RL hold)";
+            AppendLog($"PHOTO_{label}: RL hold, {frameCount} frames.");
+            await _robot.ScanExposeLeftRightHoldForPhotoAsync(cancellationToken);
+            var leftRightHold = await GrabFaceAsync(Settings.VideoDurationMs);
+
+            var samples = FaceScanner.MergeDualHold(topBottomHold, leftRightHold);
+            map[face] = samples;
+            ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray());
+            AppendLog($"Stored {face} ({label}) — merged TB+RL holds.");
+        }
+
         _robot!.ResetOrientation();
         AppendLog("START: CURRENT_FACE=FRONT, RL_IN, TB_IN, turners reset.");
 
-        AppendLog("FRONT: RL_OUT, TB_OUT");
-        await _robot.ScanRlOutTbOutAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.F, "FRONT");
+        AppendLog("FRONT: dual hold photo (TB hold + RL hold, merge)");
+        await CaptureFaceDualHoldAsync(CubeFace.F, "FRONT");
         var frontCenter = ColorClassifier.Guess(map[CubeFace.F][4]);
         if (frontCenter == StickerColor.White)
         {
@@ -928,40 +962,18 @@ public partial class MainViewModel : ObservableObject
             AppendLog($"Front center read as {frontCenter}, not White. Load with the logo (white) face toward the camera.");
         }
 
-        AppendLog("FRONT: RL_IN, TB_IN");
-        await _robot.ScanRlInTbInAsync(cancellationToken);
         LogState("FRONT photo");
 
-        AppendLog("RIGHT: TURN_R_90");
-        await _robot.ScanTurnRight90Async(cancellationToken);
-        await _robot.ScanExposeSideForPhotoAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.R, "RIGHT");
-        LogState("RIGHT photo");
+        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.R, "RIGHT");
+        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.B, "BACK");
+        await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.L, "LEFT");
 
-        AppendLog("BACK: TURN_R_90");
-        await _robot.ScanTurnRight90Async(cancellationToken);
-        await _robot.ScanExposeSideForPhotoAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.B, "BACK");
-        LogState("BACK photo");
+        AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch handoff)");
+        await _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
+        LogState("back at FRONT for pitch");
 
-        AppendLog("LEFT: TURN_R_90");
-        await _robot.ScanTurnRight90Async(cancellationToken);
-        await _robot.ScanExposeSideForPhotoAsync(cancellationToken);
-        await CaptureFaceAsync(CubeFace.L, "LEFT");
-        LogState("LEFT photo");
-
-        AppendLog("RETURN: TURN_R_90 (no photo — restore FRONT to camera)");
-        await _robot.ScanTurnRight90Async(cancellationToken);
-        if (_robot.CurrentCameraFace != CubeFace.F)
-        {
-            AppendLog($"WARNING: expected FRONT at camera, got {_robot.CurrentCameraFace}");
-        }
-        else
-        {
-            AppendLog("CONFIRM: CURRENT_FACE=FRONT");
-        }
-
-        AppendLog("TOP: pitch to expose Up");
+        AppendLog("TOP: handoff + pitch");
+        await _robot.ScanHandoffToPitchAsync(cancellationToken);
         await _robot.ScanPitchToTopAsync(cancellationToken);
         await CaptureFaceAsync(CubeFace.U, "TOP");
         LogState("TOP photo");
