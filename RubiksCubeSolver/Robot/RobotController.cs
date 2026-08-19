@@ -269,6 +269,11 @@ public sealed class RobotController : IDisposable
 
     public async Task YawScanAsync(CancellationToken cancellationToken, bool opposite = false)
     {
+        if (!PairCommandedAtStart(_settings.TopTurner, _settings.BottomTurner))
+        {
+            await ResetYawTurnersForScanAsync(cancellationToken);
+        }
+
         var invert = _settings.InvertYaw ^ opposite;
         await HoldTopBottomScanAsync(cancellationToken);
         await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken);
@@ -313,6 +318,11 @@ public sealed class RobotController : IDisposable
 
     public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
     {
+        if (!PairCommandedAtStart(_settings.LeftTurner, _settings.RightTurner))
+        {
+            await ResetPitchTurnersForScanAsync(cancellationToken);
+        }
+
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
         await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
@@ -373,28 +383,40 @@ public sealed class RobotController : IDisposable
 
     async Task ReversePairToStartAsync(GripperCalibration a, GripperCalibration b, CancellationToken cancellationToken)
     {
-        var fromA = ReferenceEquals(_lastTumbleA, a) && !double.IsNaN(_lastTumbleTargetA) ? _lastTumbleTargetA : a.EndUs;
-        var fromB = ReferenceEquals(_lastTumbleB, b) && !double.IsNaN(_lastTumbleTargetB) ? _lastTumbleTargetB : b.EndUs;
-        MatchPairSpeeds(a, b, fromA, fromB, a.StartUs, b.StartUs);
+        var dist = Math.Max(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
+        MatchPairSpeeds(a, b, a.EndUs, b.EndUs, a.StartUs, b.StartUs);
         NeutralGripper(a);
         NeutralGripper(b);
-        await WaitForPairMoveAsync(Math.Max(Math.Abs(a.StartUs - fromA), Math.Abs(b.StartUs - fromB)), cancellationToken);
+        var homeMs = (int)Math.Clamp(dist / 0.85 + 400, 700, _settings.MovementTimeoutMs);
+        await Task.Delay(homeMs, cancellationToken);
+        NeutralGripper(a);
+        NeutralGripper(b);
+        await Task.Delay(Math.Max(80, _settings.SettleMs), cancellationToken);
         ConfigureGripper(a);
         ConfigureGripper(b);
-        if (ReferenceEquals(_lastTumbleA, a) && ReferenceEquals(_lastTumbleB, b))
-        {
-            _lastTumbleTargetA = a.StartUs;
-            _lastTumbleTargetB = b.StartUs;
-        }
+        _lastTumbleA = a;
+        _lastTumbleB = b;
+        _lastTumbleTargetA = a.StartUs;
+        _lastTumbleTargetB = b.StartUs;
     }
 
     const double ServoMinUs = 256;
     const double ServoMaxUs = 2496;
 
-    static (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
+    bool PairCommandedAtStart(GripperCalibration a, GripperCalibration b)
+    {
+        if (!ReferenceEquals(_lastTumbleA, a) || !ReferenceEquals(_lastTumbleB, b))
+        {
+            return true;
+        }
+
+        return Math.Abs(_lastTumbleTargetA - a.StartUs) < 40 && Math.Abs(_lastTumbleTargetB - b.StartUs) < 40;
+    }
+
+    (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
     {
         var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        mag += Math.Max(0, extraUs);
+        mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
         mag = Math.Min(mag, a.StartUs - ServoMinUs);
         mag = Math.Min(mag, b.StartUs - ServoMinUs);
         mag = Math.Min(mag, ServoMaxUs - a.StartUs);
