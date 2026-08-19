@@ -8,15 +8,19 @@ public sealed class DigitalCube
 
     public StickerColor[] Colors { get; } = SolvedWestern();
 
+    /// <summary>
+    /// Solved Western cube when loaded with the logo (white center) facing the camera as Front.
+    /// Face order: U, R, F, D, L, B.
+    /// </summary>
     public static StickerColor[] SolvedWestern()
     {
         var colors = new StickerColor[54];
-        Fill(colors, 0, StickerColor.White);
-        Fill(colors, 9, StickerColor.Red);
-        Fill(colors, 18, StickerColor.Green);
-        Fill(colors, 27, StickerColor.Yellow);
-        Fill(colors, 36, StickerColor.Orange);
-        Fill(colors, 45, StickerColor.Blue);
+        Fill(colors, 0, StickerColor.Red);
+        Fill(colors, 9, StickerColor.Blue);
+        Fill(colors, 18, StickerColor.White);
+        Fill(colors, 27, StickerColor.Orange);
+        Fill(colors, 36, StickerColor.Green);
+        Fill(colors, 45, StickerColor.Yellow);
         return colors;
     }
 

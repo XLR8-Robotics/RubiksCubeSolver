@@ -41,9 +41,55 @@ public static class FaceScanner
             return preview;
         }
 
+        if (settings.FaceAutoDetect)
+        {
+            var quad = TryFindFaceQuad(work);
+            if (quad is not null)
+            {
+                samples = SampleWarpedPreview(preview, quad, settings.FaceSampleInset);
+                return preview;
+            }
+
+            Cv2.PutText(preview, "Auto-find: no square face detected", new Point(12, 28),
+                HersheyFonts.HersheySimplex, 0.65, new Scalar(80, 80, 255), 2);
+        }
+
         var face = CalibratedFaceRect(preview.Width, preview.Height, settings);
         samples = SampleAndDraw(preview, face, settings.FaceSampleInset, draw: true);
         return preview;
+    }
+
+    /// <summary>
+    /// Detect the cube face square in the camera image and derive manual grid slider values.
+    /// </summary>
+    public static bool TryCalibrateGrid(Mat bgr, out double margin, out double offsetX, out double offsetY)
+    {
+        margin = 0.22;
+        offsetX = 0;
+        offsetY = 0;
+
+        using var work = EnsureBgr(bgr);
+        var quad = TryFindFaceQuad(work);
+        if (quad is null)
+        {
+            return false;
+        }
+
+        var cx = quad.Average(p => p.X);
+        var cy = quad.Average(p => p.Y);
+        var side = 0.0;
+        for (int i = 0; i < 4; i++)
+        {
+            var dx = quad[(i + 1) % 4].X - quad[i].X;
+            var dy = quad[(i + 1) % 4].Y - quad[i].Y;
+            side += Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        side /= 4;
+        offsetX = Math.Clamp(cx / work.Width - 0.5, -0.35, 0.35);
+        offsetY = Math.Clamp(cy / work.Height - 0.5, -0.35, 0.35);
+        margin = Math.Clamp((1 - side / Math.Min(work.Width, work.Height)) / 2, 0.04, 0.42);
+        return true;
     }
 
     public static Rect CalibratedFaceRect(int width, int height, AppSettings settings)
@@ -126,7 +172,37 @@ public static class FaceScanner
     {
         var warped = WarpFace(work, quad, 300);
         DrawQuad(work, quad);
+        var samples = SampleWarpedGrid(warped, sampleInset, draw: true);
+        using var left = new Mat();
+        var leftWidth = Math.Max(1, warped.Rows * work.Cols / Math.Max(1, work.Rows));
+        Cv2.Resize(work, left, new Size(leftWidth, warped.Rows));
+        var composed = new Mat();
+        Cv2.HConcat(left, warped, composed);
+        warped.Dispose();
+        return new SampledFace { Samples = samples, Preview = composed };
+    }
 
+    static Scalar[] SampleWarpedPreview(Mat preview, Point2f[] quad, double sampleInset)
+    {
+        using var warped = WarpFace(preview, quad, 300);
+        var samples = SampleWarpedGrid(warped, sampleInset, draw: false);
+        DrawQuad(preview, quad);
+        const int thumb = 120;
+        using var thumbMat = new Mat();
+        Cv2.Resize(warped, thumbMat, new Size(thumb, thumb));
+        var x = Math.Clamp((int)quad.Min(p => p.X), 8, Math.Max(8, preview.Width - thumb - 8));
+        var y = Math.Clamp((int)quad.Min(p => p.Y), 8, Math.Max(8, preview.Height - thumb - 8));
+        var roi = new Rect(x, y, Math.Min(thumb, preview.Width - x), Math.Min(thumb, preview.Height - y));
+        using var resized = new Mat();
+        Cv2.Resize(thumbMat, resized, roi.Size);
+        resized.CopyTo(preview[roi]);
+        Cv2.PutText(preview, "Auto", new Point(x + 6, y + 22),
+            HersheyFonts.HersheySimplex, 0.65, new Scalar(0, 255, 255), 2);
+        return samples;
+    }
+
+    static Scalar[] SampleWarpedGrid(Mat warped, double sampleInset, bool draw)
+    {
         var samples = new Scalar[9];
         const int size = 300;
         const int cell = size / 3;
@@ -141,17 +217,14 @@ public static class FaceScanner
                 var roi = new Rect(x, y, w, w);
                 using var patch = warped.SubMat(roi);
                 samples[r * 3 + c] = Cv2.Mean(patch);
-                Cv2.Rectangle(warped, roi, new Scalar(0, 255, 255), 2);
+                if (draw)
+                {
+                    Cv2.Rectangle(warped, roi, new Scalar(0, 255, 255), 2);
+                }
             }
         }
 
-        using var left = new Mat();
-        var leftWidth = Math.Max(1, warped.Rows * work.Cols / Math.Max(1, work.Rows));
-        Cv2.Resize(work, left, new Size(leftWidth, warped.Rows));
-        var composed = new Mat();
-        Cv2.HConcat(left, warped, composed);
-        warped.Dispose();
-        return new SampledFace { Samples = samples, Preview = composed };
+        return samples;
     }
 
     static Mat EnsureBgr(Mat src)
@@ -203,8 +276,11 @@ public static class FaceScanner
 
             var rect = Cv2.MinAreaRect(approx);
             var squareness = Math.Min(rect.Size.Width, rect.Size.Height) / Math.Max(rect.Size.Width, rect.Size.Height);
-            var score = area * squareness;
-            if (squareness > 0.7 && score > bestScore)
+            var centerDist = Math.Sqrt(
+                Math.Pow(rect.Center.X - bgr.Width * 0.5, 2) +
+                Math.Pow(rect.Center.Y - bgr.Height * 0.5, 2));
+            var score = area * squareness / (1 + centerDist * 0.002);
+            if (squareness > 0.65 && score > bestScore)
             {
                 bestScore = score;
                 best = approx;
@@ -285,6 +361,22 @@ public static class FaceScanner
         for (int i = 0; i < 9; i++)
         {
             merged[i] = Average(first[i], second[i]);
+        }
+
+        return merged;
+    }
+
+    public static Scalar[] AverageSamples(IReadOnlyList<Scalar[]> frames)
+    {
+        if (frames.Count == 0)
+        {
+            throw new ArgumentException("At least one frame is required.", nameof(frames));
+        }
+
+        var merged = frames[0];
+        for (int i = 1; i < frames.Count; i++)
+        {
+            merged = AverageSamples(merged, frames[i]);
         }
 
         return merged;

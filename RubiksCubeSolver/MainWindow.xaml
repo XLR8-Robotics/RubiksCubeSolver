@@ -45,7 +45,8 @@
                 </Grid>
                 <ProgressBar Value="{Binding Progress}" Maximum="1" Margin="0,8,0,12"/>
                 <WrapPanel>
-                    <Button Content="Load" Command="{Binding LoadCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                    <Button Content="Load" Command="{Binding LoadCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"
+                            ToolTip="Open arms. Insert the cube with the Rubik's logo (white face) facing the camera."/>
                     <Button Content="Unload" Command="{Binding UnloadCommand}" Background="{StaticResource PanelAltBrush}"/>
                     <Button Content="Start" Command="{Binding StartCommand}" Background="{StaticResource AccentBrush}"/>
                     <Button Content="Scramble" Command="{Binding ScrambleCommand}" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"
@@ -123,7 +124,7 @@
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="LIVE GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
                             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,8"
-                                       Text="Connect the webcam, hug a cube, then drag the sliders until each yellow box sits on one sticker. Press Keep these settings to write this grid into settings.json. Servo calibration is left unchanged."/>
+                                       Text="Connect the webcam, press Hug cube (auto-calibrates the grid), or press Auto calibrate on a framed face. Fine-tune with sliders if needed, then Keep these settings."/>
                             <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
                                 <Image Source="{Binding CameraImage}" Stretch="Uniform"/>
                             </Border>
@@ -198,10 +199,11 @@
 
                                 <CheckBox Content="Rotate photos 180°" IsChecked="{Binding Settings.RotatePhotos180}" Margin="0,0,0,8"/>
                                 <CheckBox Content="Auto-find face during scans" IsChecked="{Binding FaceAutoDetect}" Margin="0,0,0,12"
-                                          ToolTip="Leave off so scans use this grid. Auto-find can lock onto grippers or the wrong square."/>
+                                          ToolTip="When on, each scan photo finds the face square automatically (perspective warp). Best for angled views. Auto calibrate sets the manual grid instead."/>
 
                                 <WrapPanel>
                                     <Button Content="Hug cube" Command="{Binding HugForScanGridCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                                    <Button Content="Auto calibrate" Command="{Binding AutoCalibrateScanGridCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>
                                     <Button Content="Reset grid" Command="{Binding ResetScanGridCommand}" Background="{StaticResource PanelAltBrush}"/>
                                     <Button Content="Keep these settings" Command="{Binding SaveScanGridCommand}" Background="{StaticResource AccentBrush}" Margin="0"/>
                                 </WrapPanel>
@@ -233,6 +235,12 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="Video settle ms" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.VideoDurationMs}" Width="80" Margin="0,0,16,0"/>
+                                    <TextBlock Text="Scan frames" Width="90" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.ScanFramesPerFace}" Width="50" Margin="0,0,16,0"
+                                             ToolTip="Photos averaged per side during scan (1–12). More frames = better color read, slower scan."/>
+                                    <TextBlock Text="Scan hold squeeze" Width="120" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.ScanHoldSqueezeUs}" Width="60" Margin="0,0,16,0"
+                                             ToolTip="Extra grip when one arm pair holds the cube while the other pair moves away during scan."/>
                                     <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"
                                                ToolTip="Old inset value. 0 = largest grid, 0.42 = smallest. Prefer Grid size on the Scan grid tab."/>
                                     <TextBox Text="{Binding FaceMargin}" Width="80" Margin="0,0,16,0"/>

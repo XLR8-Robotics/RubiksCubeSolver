@@ -51,13 +51,16 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 10;
+    public const int CurrentCalibrationVersion = 11;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
     public string? CameraName { get; set; }
     public bool RotatePhotos180 { get; set; }
     public int VideoDurationMs { get; set; } = 1000;
+    public int ScanFramesPerFace { get; set; } = 4;
+    public int ScanFrameGapMs { get; set; } = 150;
+    public int ScanHoldSqueezeUs { get; set; } = 220;
     public double FaceMargin { get; set; } = 0.22;
     public double FaceOffsetX { get; set; }
     public double FaceOffsetY { get; set; }
@@ -150,6 +153,11 @@ public sealed class AppSettings
                 settings.ApplyMatchedOppositeEnds();
             }
 
+            if (settings.CalibrationVersion < 11)
+            {
+                settings.ApplyScanCaptureDefaults();
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -222,6 +230,24 @@ public sealed class AppSettings
         if (FaceSampleInset <= 0)
         {
             FaceSampleInset = 0.18;
+        }
+    }
+
+    public void ApplyScanCaptureDefaults()
+    {
+        if (ScanFramesPerFace <= 0)
+        {
+            ScanFramesPerFace = 4;
+        }
+
+        if (ScanFrameGapMs <= 0)
+        {
+            ScanFrameGapMs = 150;
+        }
+
+        if (ScanHoldSqueezeUs <= 0)
+        {
+            ScanHoldSqueezeUs = 220;
         }
     }
 

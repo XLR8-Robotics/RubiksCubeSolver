@@ -258,10 +258,10 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    async Task HoldPairAsync(ArmCalibration holdA, ArmCalibration holdB, ArmCalibration clearA, ArmCalibration clearB, CancellationToken cancellationToken, bool squeeze = true)
+    async Task HoldPairAsync(ArmCalibration holdA, ArmCalibration holdB, ArmCalibration clearA, ArmCalibration clearB, CancellationToken cancellationToken, bool squeeze = true, int? squeezeExtraUs = null)
     {
-        SetArm(holdA, inside: true, squeeze: squeeze);
-        SetArm(holdB, inside: true, squeeze: squeeze);
+        SetArm(holdA, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
+        SetArm(holdB, inside: true, squeeze: squeeze, squeezeExtraUs: squeezeExtraUs);
         await WaitAsync(cancellationToken);
         SetArm(clearA, inside: false);
         SetArm(clearB, inside: false);
@@ -381,7 +381,7 @@ public sealed class RobotController : IDisposable
             Orientation.Yaw(invert);
         }, cancellationToken);
 
-    public async Task SequencePitchResetAsync(CancellationToken cancellationToken)
+    public async Task SequencePitchResetAsync(CancellationToken cancellationToken, bool resetCubeOrientation = false)
     {
         await HoldPitchTurnersStillAsync(cancellationToken);
         await HoldYawTurnersStillAsync(cancellationToken);
@@ -390,6 +390,10 @@ public sealed class RobotController : IDisposable
         await PitchTurnersToStartAsync(cancellationToken);
         await LeftRightInAsync(cancellationToken, squeeze: true);
         await TopBottomOutAsync(cancellationToken);
+        if (resetCubeOrientation)
+        {
+            ResetOrientation();
+        }
     }
 
     public async Task SequencePitch90Async(CancellationToken cancellationToken, bool opposite = false)
@@ -406,7 +410,7 @@ public sealed class RobotController : IDisposable
         await PitchSpin90Async(cancellationToken, opposite);
     }
 
-    public async Task SequenceYawResetAsync(CancellationToken cancellationToken)
+    public async Task SequenceYawResetAsync(CancellationToken cancellationToken, bool resetCubeOrientation = false)
     {
         await HoldPitchTurnersStillAsync(cancellationToken);
         await LeftRightInAsync(cancellationToken, squeeze: false);
@@ -415,6 +419,10 @@ public sealed class RobotController : IDisposable
         await YawTurnersToStartAsync(cancellationToken);
         await TopBottomInAsync(cancellationToken, squeeze: false);
         await LeftRightOutAsync(cancellationToken);
+        if (resetCubeOrientation)
+        {
+            ResetOrientation();
+        }
     }
 
     public async Task SequenceYaw90Async(CancellationToken cancellationToken, bool opposite = false)
@@ -441,10 +449,12 @@ public sealed class RobotController : IDisposable
     }
 
     public Task HoldTopBottomScanAsync(CancellationToken cancellationToken) =>
-        HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken, squeeze: false);
+        HoldPairAsync(_settings.TopArm, _settings.BottomArm, _settings.LeftArm, _settings.RightArm, cancellationToken,
+            squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
 
     public Task HoldLeftRightScanAsync(CancellationToken cancellationToken) =>
-        HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: false);
+        HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken,
+            squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
 
     public Task YawScanAsync(CancellationToken cancellationToken, bool opposite = false) =>
         SequenceYaw90Async(cancellationToken, opposite);
@@ -922,7 +932,7 @@ public sealed class RobotController : IDisposable
         }
     }
 
-    void SetArm(ArmCalibration arm, bool inside, bool squeeze = false)
+    void SetArm(ArmCalibration arm, bool inside, bool squeeze = false, int? squeezeExtraUs = null)
     {
         double microseconds;
         if (!inside)
@@ -931,7 +941,7 @@ public sealed class RobotController : IDisposable
         }
         else if (squeeze)
         {
-            var extra = Math.Max(0, _settings.TumbleSqueezeUs);
+            var extra = Math.Max(0, squeezeExtraUs ?? _settings.TumbleSqueezeUs);
             var towardCube = Math.Sign(arm.InUs - arm.OutUs);
             if (towardCube == 0)
             {
