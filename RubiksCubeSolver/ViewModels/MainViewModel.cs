@@ -304,8 +304,19 @@ public partial class MainViewModel : ObservableObject
             _robot = new RobotController(_maestro, Settings);
             _robot.OnCommand = message =>
             {
-                StatusText = message;
-                AppendLog(message);
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher is null || dispatcher.CheckAccess())
+                {
+                    StatusText = message;
+                    AppendLog(message);
+                    return;
+                }
+
+                dispatcher.Invoke(() =>
+                {
+                    StatusText = message;
+                    AppendLog(message);
+                });
             };
             _robot.ConfigureChannels();
             ConnectionText = $"Connected ({SelectedPort.PortName})";
@@ -867,16 +878,21 @@ public partial class MainViewModel : ObservableObject
         await _robot.SequenceYaw90Async(cancellationToken);
         await _robot.SequenceHandoffToPitchAsync(cancellationToken);
 
+        AppendLog("Pitch: Left/Right point U at the camera.");
         await _robot.SequencePitch90Async(cancellationToken);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
+        AppendLog("After U: hold turners still, Top/Bottom in, Left/Right out, Start, Left/Right in, Top/Bottom out.");
         await _robot.SequencePitchResetAsync(cancellationToken);
+        AppendLog("Pitch: Left/Right spin Front to the camera.");
         await _robot.SequencePitch90Async(cancellationToken, opposite: true);
 
+        AppendLog("Pitch reset, then Left/Right point D at the camera.");
         await _robot.SequencePitchResetAsync(cancellationToken);
         await _robot.SequencePitch90Async(cancellationToken, opposite: true);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
+        AppendLog("Pitch reset, then Left/Right spin Front to the camera and hug.");
         await _robot.SequencePitchResetAsync(cancellationToken);
         await _robot.SequencePitch90Async(cancellationToken);
         await _robot.SequenceScanHugAsync(cancellationToken);
