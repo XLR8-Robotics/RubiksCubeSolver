@@ -51,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 12;
+    public const int CurrentCalibrationVersion = 13;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -60,8 +60,8 @@ public sealed class AppSettings
     public int VideoDurationMs { get; set; } = 1000;
     public int ScanFramesPerFace { get; set; } = 4;
     public int ScanFrameGapMs { get; set; } = 150;
-    public int ScanHoldSqueezeUs { get; set; } = 220;
-    public int TurnGripSqueezeUs { get; set; } = 90;
+    public int ScanHoldSqueezeUs { get; set; } = 140;
+    public int TurnGripSqueezeUs { get; set; } = 50;
     public int TurnSpeedCap { get; set; } = 30;
     public int TurnAccelerationCap { get; set; } = 50;
     public double FaceMargin { get; set; } = 0.22;
@@ -73,7 +73,7 @@ public sealed class AppSettings
     public bool InvertYaw { get; set; }
     public bool TestMode { get; set; }
     public int ZenDisplaySeconds { get; set; } = 15;
-    public int TumbleSqueezeUs { get; set; } = 150;
+    public int TumbleSqueezeUs { get; set; } = 80;
     public int PitchExtraUs { get; set; }
     public int TumbleTrimUs { get; set; } = 35;
     public int SettleMs { get; set; } = 120;
@@ -166,6 +166,11 @@ public sealed class AppSettings
                 settings.ApplyTurnGentleDefaults();
             }
 
+            if (settings.CalibrationVersion < 13)
+            {
+                settings.ApplySofterGripDefaults();
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -255,7 +260,25 @@ public sealed class AppSettings
 
         if (ScanHoldSqueezeUs <= 0)
         {
-            ScanHoldSqueezeUs = 220;
+            ScanHoldSqueezeUs = 140;
+        }
+    }
+
+    public void ApplySofterGripDefaults()
+    {
+        if (ScanHoldSqueezeUs >= 180)
+        {
+            ScanHoldSqueezeUs = 140;
+        }
+
+        if (TurnGripSqueezeUs >= 70)
+        {
+            TurnGripSqueezeUs = 50;
+        }
+
+        if (TumbleSqueezeUs >= 120)
+        {
+            TumbleSqueezeUs = 80;
         }
     }
 
@@ -263,7 +286,7 @@ public sealed class AppSettings
     {
         if (TurnGripSqueezeUs <= 0)
         {
-            TurnGripSqueezeUs = 90;
+            TurnGripSqueezeUs = 50;
         }
 
         if (TurnSpeedCap <= 0)

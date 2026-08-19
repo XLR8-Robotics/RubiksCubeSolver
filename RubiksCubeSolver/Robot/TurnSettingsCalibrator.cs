@@ -31,9 +31,9 @@ public static class TurnSettingsCalibrator
         var minSpeed = turners.Min(t => t.Speed);
         var minAccel = turners.Min(t => t.Acceleration);
 
-        var turnGrip = ClampInt(armTravel * 0.055, 55, 110);
-        var scanHold = ClampInt(turnGrip * 2.3, 160, 250);
-        var tumbleSqueeze = ClampInt(turnGrip * 1.55, 90, 160);
+        var turnGrip = ClampInt(armTravel * 0.035, 35, 70);
+        var scanHold = ClampInt(turnGrip * 2.0, 100, 160);
+        var tumbleSqueeze = ClampInt(turnGrip * 1.35, 55, 100);
         var speedCap = ClampInt(minSpeed * 0.72, 24, 34);
         var accelCap = ClampInt(minAccel * 0.42, 38, 55);
         var trim = ClampInt(quarterTurn * 0.028, 28, 48);
@@ -52,7 +52,7 @@ public static class TurnSettingsCalibrator
     public static void SoftenForStall(AppSettings settings, ICollection<string> log)
     {
         settings.TurnSpeedCap = Math.Max(18, settings.TurnSpeedCap - 4);
-        settings.TurnGripSqueezeUs = Math.Max(45, settings.TurnGripSqueezeUs - 12);
+        settings.TurnGripSqueezeUs = Math.Max(30, settings.TurnGripSqueezeUs - 10);
         settings.TumbleTrimUs = Math.Min(60, settings.TumbleTrimUs + 4);
         log.Add(
             $"Stall detected — softened to grip {settings.TurnGripSqueezeUs}, speed {settings.TurnSpeedCap}, trim {settings.TumbleTrimUs}.");
