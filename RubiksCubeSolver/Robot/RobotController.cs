@@ -150,7 +150,7 @@ public sealed class RobotController : IDisposable
     {
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken);
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs, mirrorPair: false);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
@@ -335,14 +335,14 @@ public sealed class RobotController : IDisposable
         CommandAsync(opposite ? "Pitch 90° the other way" : "Pitch 90°", async ct =>
         {
             var invert = _settings.InvertPitch ^ opposite;
-            var (targetA, targetB) = PairTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
+            var (targetA, targetB) = PairTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs, mirrorPair: false);
             if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetA, targetB))
             {
                 OnCommand?.Invoke("Pitch 90° blocked (would be ~180°) — turners are not at Start");
                 return;
             }
 
-            await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs);
+            await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs, mirrorPair: false);
             Orientation.Pitch(invert);
         }, cancellationToken);
 
@@ -373,6 +373,7 @@ public sealed class RobotController : IDisposable
 
         await LeftRightInAsync(cancellationToken, squeeze: true);
         await TopBottomOutAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
         await PitchSpin90Async(cancellationToken, opposite);
     }
 
@@ -467,9 +468,9 @@ public sealed class RobotController : IDisposable
     const double ServoMinUs = 256;
     const double ServoMaxUs = 2496;
 
-    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0)
+    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true)
     {
-        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection, extraUs);
+        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection, extraUs, mirrorPair);
         MatchPairSpeeds(a, b, a.StartUs, b.StartUs, targetA, targetB);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
@@ -633,7 +634,7 @@ public sealed class RobotController : IDisposable
         }
     }
 
-    (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0)
+    (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0, bool mirrorPair = true)
     {
         var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
         mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
@@ -648,8 +649,15 @@ public sealed class RobotController : IDisposable
         if (signA == 0) signA = 1;
         if (signB == 0) signB = 1;
 
-        var targetA = a.StartUs + (invertDirection ? -signA : signA) * mag;
-        var targetB = b.StartUs + (invertDirection ? signB : -signB) * mag;
+        var dirA = invertDirection ? -signA : signA;
+        var dirB = invertDirection ? -signB : signB;
+        if (mirrorPair)
+        {
+            dirB = -dirB;
+        }
+
+        var targetA = a.StartUs + dirA * mag;
+        var targetB = b.StartUs + dirB * mag;
         return (Math.Clamp(targetA, ServoMinUs, ServoMaxUs), Math.Clamp(targetB, ServoMinUs, ServoMaxUs));
     }
 
