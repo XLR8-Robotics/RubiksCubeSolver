@@ -3,6 +3,14 @@ using RubiksCubeSolver.Models;
 
 namespace RubiksCubeSolver.Robot;
 
+public enum HugArm
+{
+    Top,
+    Bottom,
+    Left,
+    Right
+}
+
 public sealed class CubeOrientation
 {
     public CubeFace Up { get; set; } = CubeFace.U;
@@ -124,8 +132,35 @@ public sealed class RobotController : IDisposable
     async Task EnsureHuggedAsync(CancellationToken cancellationToken)
     {
         await HomeTurnersForHugAsync(cancellationToken);
-        AllArmsIn();
+        ApplyHugPressures();
         await WaitAsync(cancellationToken);
+    }
+
+    public void ApplyHugPressures()
+    {
+        SetArm(_settings.TopArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeTopUs);
+        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeBottomUs);
+        SetArm(_settings.LeftArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeLeftUs);
+        SetArm(_settings.RightArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeRightUs);
+    }
+
+    public void ApplyLiveHugArm(HugArm arm)
+    {
+        switch (arm)
+        {
+            case HugArm.Top:
+                SetArm(_settings.TopArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeTopUs);
+                break;
+            case HugArm.Bottom:
+                SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeBottomUs);
+                break;
+            case HugArm.Left:
+                SetArm(_settings.LeftArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeLeftUs);
+                break;
+            case HugArm.Right:
+                SetArm(_settings.RightArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeRightUs);
+                break;
+        }
     }
 
     async Task HomeTurnersForHugAsync(CancellationToken cancellationToken)
@@ -171,7 +206,7 @@ public sealed class RobotController : IDisposable
             await PitchSpin90Async(cancellationToken, opposite: false);
         }
 
-        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeBottomUs);
         await WaitAsync(cancellationToken);
         await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
         SetArm(_settings.TopArm, inside: false);
@@ -183,7 +218,7 @@ public sealed class RobotController : IDisposable
 
     public async Task ArmsInHoldAsync(CancellationToken cancellationToken)
     {
-        AllArmsIn();
+        ApplyHugPressures();
         await WaitAsync(cancellationToken);
     }
 
@@ -491,12 +526,12 @@ public sealed class RobotController : IDisposable
 
     public async Task SequenceScanHugAsync(CancellationToken cancellationToken)
     {
-        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeBottomUs);
         await WaitAsync(cancellationToken);
         await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
-        SetArm(_settings.TopArm, inside: true);
-        SetArm(_settings.LeftArm, inside: true);
-        SetArm(_settings.RightArm, inside: true);
+        SetArm(_settings.TopArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeTopUs);
+        SetArm(_settings.LeftArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeLeftUs);
+        SetArm(_settings.RightArm, inside: true, squeeze: true, squeezeExtraUs: _settings.HugSqueezeRightUs);
         await WaitAsync(cancellationToken);
     }
 

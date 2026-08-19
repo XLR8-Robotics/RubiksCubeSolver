@@ -86,6 +86,10 @@ public partial class MainViewModel : ObservableObject
         _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
         _previewTimer.Tick += (_, _) => TickPreview();
         TestMode = Settings.TestMode;
+        HugSqueezeTop = Settings.HugSqueezeTopUs;
+        HugSqueezeBottom = Settings.HugSqueezeBottomUs;
+        HugSqueezeLeft = Settings.HugSqueezeLeftUs;
+        HugSqueezeRight = Settings.HugSqueezeRightUs;
         if (!TestMode)
         {
             AppendLog("Ready. Pick your webcam, connect the Mini Maestro Command Port, then Load a cube.");
@@ -126,6 +130,99 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] bool zenModeRunning;
     [ObservableProperty] double progress;
     [ObservableProperty] string cameraResolution = "";
+
+    [ObservableProperty] bool hugTuneLive;
+    [ObservableProperty] int hugSqueezeTop = 50;
+    [ObservableProperty] int hugSqueezeBottom = 140;
+    [ObservableProperty] int hugSqueezeLeft = 140;
+    [ObservableProperty] int hugSqueezeRight = 140;
+
+    partial void OnHugSqueezeTopChanged(int value) => HugSqueezeChanged(HugArm.Top, value);
+    partial void OnHugSqueezeBottomChanged(int value) => HugSqueezeChanged(HugArm.Bottom, value);
+    partial void OnHugSqueezeLeftChanged(int value) => HugSqueezeChanged(HugArm.Left, value);
+    partial void OnHugSqueezeRightChanged(int value) => HugSqueezeChanged(HugArm.Right, value);
+
+    void HugSqueezeChanged(HugArm arm, int value)
+    {
+        value = Math.Clamp(value, 0, 250);
+        switch (arm)
+        {
+            case HugArm.Top: Settings.HugSqueezeTopUs = value; break;
+            case HugArm.Bottom: Settings.HugSqueezeBottomUs = value; break;
+            case HugArm.Left: Settings.HugSqueezeLeftUs = value; break;
+            case HugArm.Right: Settings.HugSqueezeRightUs = value; break;
+        }
+
+        ApplyLiveHugIfTuning(arm);
+    }
+
+    void ApplyLiveHugIfTuning(HugArm arm)
+    {
+        if (!HugTuneLive || TestMode || _robot is null || !_maestro.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            _robot.ApplyLiveHugArm(arm);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Hug tune: " + ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    public async Task StartHugTuneAsync()
+    {
+        if (TestMode)
+        {
+            AppendLog("Test mode: hug tune needs hardware.");
+            return;
+        }
+
+        try
+        {
+            EnsureRobot();
+            HugTuneLive = true;
+            AppendLog("Hug tune live — move sliders; each arm updates immediately. Top often ~50 µs. Save settings when done.");
+            await _robot!.HugAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            HugTuneLive = false;
+            AppendLog("Hug tune failed: " + ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    public void StopHugTune()
+    {
+        HugTuneLive = false;
+        AppendLog("Hug tune off (sliders still edit saved values).");
+    }
+
+    [RelayCommand]
+    public async Task ReapplyHugPressuresAsync()
+    {
+        if (TestMode || _robot is null)
+        {
+            return;
+        }
+
+        try
+        {
+            EnsureRobot();
+            _robot.ApplyHugPressures();
+            await _maestro.WaitUntilIdleAsync(Settings.MovementTimeoutMs, Settings.SettleMs, CancellationToken.None);
+            AppendLog("Hug pressures reapplied to all four arms.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Reapply hug: " + ex.Message);
+        }
+    }
 
     public bool CanOperate => !IsBusy;
 
