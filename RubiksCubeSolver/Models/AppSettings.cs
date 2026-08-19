@@ -51,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 14;
+    public const int CurrentCalibrationVersion = 13;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -61,11 +61,6 @@ public sealed class AppSettings
     public int ScanFramesPerFace { get; set; } = 4;
     public int ScanFrameGapMs { get; set; } = 150;
     public int ScanHoldSqueezeUs { get; set; } = 140;
-    /// <summary>Extra µs past In when hugging — top arm (often needs less to avoid stall).</summary>
-    public int HugSqueezeTopUs { get; set; } = 50;
-    public int HugSqueezeBottomUs { get; set; } = 140;
-    public int HugSqueezeLeftUs { get; set; } = 140;
-    public int HugSqueezeRightUs { get; set; } = 140;
     public int TurnGripSqueezeUs { get; set; } = 50;
     public int TurnSpeedCap { get; set; } = 30;
     public int TurnAccelerationCap { get; set; } = 50;
@@ -176,11 +171,6 @@ public sealed class AppSettings
                 settings.ApplySofterGripDefaults();
             }
 
-            if (settings.CalibrationVersion < 14)
-            {
-                settings.ApplyHugSqueezeDefaults();
-            }
-
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -289,30 +279,6 @@ public sealed class AppSettings
         if (TumbleSqueezeUs >= 120)
         {
             TumbleSqueezeUs = 80;
-        }
-    }
-
-    public void ApplyHugSqueezeDefaults()
-    {
-        var side = ScanHoldSqueezeUs > 0 ? ScanHoldSqueezeUs : 140;
-        if (HugSqueezeTopUs <= 0)
-        {
-            HugSqueezeTopUs = 50;
-        }
-
-        if (HugSqueezeBottomUs <= 0)
-        {
-            HugSqueezeBottomUs = side;
-        }
-
-        if (HugSqueezeLeftUs <= 0)
-        {
-            HugSqueezeLeftUs = side;
-        }
-
-        if (HugSqueezeRightUs <= 0)
-        {
-            HugSqueezeRightUs = side;
         }
     }
 

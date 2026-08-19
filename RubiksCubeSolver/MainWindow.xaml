@@ -274,68 +274,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="Hug pressure (live tune)" FontWeight="SemiBold"/>
-                                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,10"
-                                           Text="Extra microseconds past each arm's In position toward the cube. Lower = gentler (less stall). Top often needs ~50; sides/bottom often ~100–140. Press Hug &amp; tune live, move sliders while the cube is gripped, then Save settings."/>
-                                <WrapPanel Margin="0,0,0,8">
-                                    <Button Content="Hug &amp; tune live" Command="{Binding StartHugTuneAsyncCommand}"
-                                            Background="{StaticResource OkBrush}" Foreground="#102016" Margin="0,0,12,8"/>
-                                    <Button Content="Reapply all arms" Command="{Binding ReapplyHugPressuresAsyncCommand}" Margin="0,0,12,8"/>
-                                    <Button Content="Stop live tune" Command="{Binding StopHugTuneCommand}" Margin="0,0,12,8"/>
-                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}">
-                                        <Run Text="Live tune:"/>
-                                        <Run Text="{Binding HugTuneLive}"/>
-                                    </TextBlock>
-                                </WrapPanel>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="88"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="44"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Top arm" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1" Minimum="0" Maximum="250" SmallChange="1" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="5"
-                                            Value="{Binding HugSqueezeTop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding HugSqueezeTop}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="88"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="44"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Bottom" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1" Minimum="0" Maximum="250" SmallChange="1" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="5"
-                                            Value="{Binding HugSqueezeBottom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding HugSqueezeBottom}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="88"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="44"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Left" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1" Minimum="0" Maximum="250" SmallChange="1" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="5"
-                                            Value="{Binding HugSqueezeLeft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding HugSqueezeLeft}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="88"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="44"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Right" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1" Minimum="0" Maximum="250" SmallChange="1" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="5"
-                                            Value="{Binding HugSqueezeRight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding HugSqueezeRight}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
                         <UniformGrid Columns="2">
                             <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
                                 <StackPanel>
