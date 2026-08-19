@@ -5,6 +5,8 @@ namespace RubiksCubeSolver.Robot.Commands.Solve;
 
 public sealed class GripperQuarterTurnCommand : IRobotCommand
 {
+    const double StartToleranceUs = 50;
+
     readonly IRobotActuator _robot;
     readonly RobotStation _station;
     readonly bool _prime;
@@ -18,7 +20,10 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
 
     public string Name => $"{_station} {(_prime ? "90° '" : "90°")}";
 
-    public async Task ExecuteAsync(CancellationToken cancellationToken)
+    public Task ExecuteAsync(CancellationToken cancellationToken) =>
+        _robot.CommandAsync(Name, TurnThenRewindAsync, cancellationToken);
+
+    async Task TurnThenRewindAsync(CancellationToken cancellationToken)
     {
         var (turner, arm) = _station switch
         {
@@ -28,12 +33,22 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
             _ => (_robot.Settings.BottomTurner, _robot.Settings.BottomArm)
         };
 
+        if (!GripperNearStart(turner))
+        {
+            await RetractHomeAndReturnAsync(turner, arm, cancellationToken);
+        }
+
         _robot.SetArm(arm, inside: true);
         await _robot.WaitAsync(cancellationToken);
 
         _robot.SetGripperQuarterTurn(turner, _prime);
         await _robot.WaitAsync(cancellationToken);
 
+        await RetractHomeAndReturnAsync(turner, arm, cancellationToken);
+    }
+
+    async Task RetractHomeAndReturnAsync(GripperCalibration turner, ArmCalibration arm, CancellationToken cancellationToken)
+    {
         _robot.SetArm(arm, inside: false);
         await _robot.WaitAsync(cancellationToken);
 
@@ -42,5 +57,11 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
 
         _robot.SetArm(arm, inside: true);
         await _robot.WaitAsync(cancellationToken);
+    }
+
+    bool GripperNearStart(GripperCalibration turner)
+    {
+        var pos = _robot.GetPositionMicroseconds(turner.Port);
+        return pos is null || Math.Abs(pos.Value - turner.StartUs) <= StartToleranceUs;
     }
 }

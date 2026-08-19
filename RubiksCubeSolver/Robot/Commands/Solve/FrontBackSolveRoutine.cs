@@ -11,23 +11,17 @@ public sealed class FrontBackSolveRoutine
     readonly HugCommand _hug;
     readonly ScanSecureRlThenTbClearCommand _secureRl;
     readonly ScanPitchReturnToFrontCommand _pitchReturn;
-    readonly PrepareForTopBottomTurnCommand _prepareTopBottom;
-    readonly PrepareForLeftRightTurnCommand _prepareLeftRight;
 
     public FrontBackSolveRoutine(
         IRobotActuator robot,
         HugCommand hug,
         ScanSecureRlThenTbClearCommand secureRl,
-        ScanPitchReturnToFrontCommand pitchReturn,
-        PrepareForTopBottomTurnCommand prepareTopBottom,
-        PrepareForLeftRightTurnCommand prepareLeftRight)
+        ScanPitchReturnToFrontCommand pitchReturn)
     {
         _robot = robot;
         _hug = hug;
         _secureRl = secureRl;
         _pitchReturn = pitchReturn;
-        _prepareTopBottom = prepareTopBottom;
-        _prepareLeftRight = prepareLeftRight;
     }
 
     public void Log(string message) => _robot.OnCommand?.Invoke(message);
@@ -42,9 +36,11 @@ public sealed class FrontBackSolveRoutine
             await _pitchReturn.ExecuteAsync(cancellationToken);
             await _secureRl.ExecuteAsync(cancellationToken);
             await _robot.PitchSpin90Async(cancellationToken, opposite: !ontoTopOpposite);
+            await _robot.YawTurnersToStartAsync(cancellationToken);
             return !ontoTopOpposite;
         }
 
+        await _robot.YawTurnersToStartAsync(cancellationToken);
         return ontoTopOpposite;
     }
 
@@ -54,15 +50,6 @@ public sealed class FrontBackSolveRoutine
         if (station is RobotStation.Front or RobotStation.Back)
         {
             throw new InvalidOperationException($"Cannot bring {face} to a Top/Bottom gripper.");
-        }
-
-        if (station is RobotStation.Top or RobotStation.Bottom)
-        {
-            await _prepareTopBottom.ExecuteAsync(cancellationToken);
-        }
-        else
-        {
-            await _prepareLeftRight.ExecuteAsync(cancellationToken);
         }
 
         await new GripperQuarterTurnCommand(_robot, station, prime).ExecuteAsync(cancellationToken);

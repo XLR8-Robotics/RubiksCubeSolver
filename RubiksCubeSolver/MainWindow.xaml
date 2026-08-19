@@ -271,7 +271,10 @@
                                              ToolTip="Lighter grip for 90° turns (lower = less stall). Try 60–100."/>
                                     <TextBlock Text="Hug TB backoff µs" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.HugTopBottomBackoffUs}" Width="60" Margin="0,0,16,0"
-                                             ToolTip="Bottom (and previously top) stop this far short of In during hug. Top now goes to full In so it sits on the cube."/>
+                                             ToolTip="Bottom stops this far short of In during hug."/>
+                                    <TextBlock Text="Hug top extra µs" Width="120" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.HugTopExtraUs}" Width="60" Margin="0,0,16,0"
+                                             ToolTip="Top moves this far past In during hug so it sits a bit lower. Try 60–120."/>
                                     <TextBlock Text="Turn speed cap" Width="100" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.TurnSpeedCap}" Width="50" Margin="0,0,16,0"
                                              ToolTip="Max turner speed during dual tumbles (lower = gentler). 0 = use calibration."/>

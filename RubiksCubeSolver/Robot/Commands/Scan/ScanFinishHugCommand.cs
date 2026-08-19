@@ -14,7 +14,7 @@ public sealed class ScanFinishHugCommand : IRobotCommand
         _hug = hug;
     }
 
-    public string Name => "Scan finish: RL_IN, TB_IN hug";
+    public string Name => "Scan finish: TB_IN, RL_IN hug";
 
     public Task ExecuteAsync(CancellationToken cancellationToken) =>
         _robot.CommandAsync(Name, ct => _hug.ArmsOnlyAsync(ct), cancellationToken);

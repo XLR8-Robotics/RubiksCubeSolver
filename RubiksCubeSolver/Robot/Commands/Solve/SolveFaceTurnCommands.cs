@@ -1,28 +1,21 @@
 using RubiksCubeSolver.Models;
-using RubiksCubeSolver.Robot.Commands.Scan;
-using RubiksCubeSolver.Robot.Commands.Shared;
 
 namespace RubiksCubeSolver.Robot.Commands.Solve;
 
 public sealed class GrippedFaceTurnCommand : IRobotCommand
 {
-    readonly IRobotCommand _prepare;
     readonly GripperQuarterTurnCommand _turn;
 
-    public GrippedFaceTurnCommand(string name, IRobotCommand prepare, GripperQuarterTurnCommand turn)
+    public GrippedFaceTurnCommand(string name, GripperQuarterTurnCommand turn)
     {
         Name = name;
-        _prepare = prepare;
         _turn = turn;
     }
 
     public string Name { get; }
 
-    public async Task ExecuteAsync(CancellationToken cancellationToken)
-    {
-        await _prepare.ExecuteAsync(cancellationToken);
-        await _turn.ExecuteAsync(cancellationToken);
-    }
+    public Task ExecuteAsync(CancellationToken cancellationToken) =>
+        _turn.ExecuteAsync(cancellationToken);
 }
 
 public sealed class PitchedFaceTurnCommand : IRobotCommand

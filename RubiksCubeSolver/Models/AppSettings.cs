@@ -51,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 14;
+    public const int CurrentCalibrationVersion = 15;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -62,8 +62,10 @@ public sealed class AppSettings
     public int ScanFrameGapMs { get; set; } = 150;
     public int ScanHoldSqueezeUs { get; set; } = 140;
     public int TurnGripSqueezeUs { get; set; } = 50;
-    /// <summary>Top/bottom arms stop this many µs short of In during hug (toward Out) so they don't stall against L/R grip.</summary>
+    /// <summary>Bottom arm stops this many µs short of In during hug (toward Out) so it doesn't stall against L/R grip.</summary>
     public int HugTopBottomBackoffUs { get; set; } = 150;
+    /// <summary>Top arm moves this many µs past In during hug so it sits a bit lower on the cube.</summary>
+    public int HugTopExtraUs { get; set; } = 80;
     public int TurnSpeedCap { get; set; } = 30;
     public int TurnAccelerationCap { get; set; } = 50;
     public double FaceMargin { get; set; } = 0.22;
@@ -178,6 +180,14 @@ public sealed class AppSettings
                 if (settings.HugTopBottomBackoffUs <= 0)
                 {
                     settings.HugTopBottomBackoffUs = 150;
+                }
+            }
+
+            if (settings.CalibrationVersion < 15)
+            {
+                if (settings.HugTopExtraUs <= 0)
+                {
+                    settings.HugTopExtraUs = 80;
                 }
             }
 

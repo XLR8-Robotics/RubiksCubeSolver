@@ -25,17 +25,21 @@ public sealed class HugCommand : IRobotCommand
 
     async Task HugCubeArmsAsync(CancellationToken cancellationToken)
     {
-        _robot.SetArm(_robot.Settings.LeftArm, inside: true);
-        _robot.SetArm(_robot.Settings.RightArm, inside: true);
+        SetArmHugTopBottom();
         await _robot.WaitAsync(cancellationToken);
         await Task.Delay(Math.Max(400, _robot.Settings.SettleMs * 2), cancellationToken);
-        SetArmHugTopBottom();
+        _robot.SetArm(_robot.Settings.LeftArm, inside: true);
+        _robot.SetArm(_robot.Settings.RightArm, inside: true);
         await _robot.WaitAsync(cancellationToken);
     }
 
     void SetArmHugTopBottom()
     {
-        _robot.SetArm(_robot.Settings.TopArm, inside: true);
+        _robot.SetArm(
+            _robot.Settings.TopArm,
+            inside: true,
+            squeeze: true,
+            squeezeExtraUs: _robot.Settings.HugTopExtraUs);
         SetArmRelaxedIn(_robot.Settings.BottomArm, _robot.Settings.HugTopBottomBackoffUs);
     }
 
