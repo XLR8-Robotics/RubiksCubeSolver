@@ -1004,9 +1004,8 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        async Task CapturePitchedFaceAsync(string label, CancellationToken ct)
+        async Task CapturePitchedFaceAsync(CubeFace face, string label, CancellationToken ct)
         {
-            var face = _robot!.CurrentCameraFace;
             var name = face switch
             {
                 CubeFace.U => "TOP",
@@ -1060,13 +1059,13 @@ public partial class MainViewModel : ObservableObject
         readonly MainViewModel _viewModel;
         readonly RobotController _robot;
         readonly Func<CubeFace, string, CancellationToken, Task> _captureDualHold;
-        readonly Func<string, CancellationToken, Task> _capturePitched;
+        readonly Func<CubeFace, string, CancellationToken, Task> _capturePitched;
 
         public CubeScanSession(
             MainViewModel viewModel,
             RobotController robot,
             Func<CubeFace, string, CancellationToken, Task> captureDualHold,
-            Func<string, CancellationToken, Task> capturePitched)
+            Func<CubeFace, string, CancellationToken, Task> capturePitched)
         {
             _viewModel = viewModel;
             _robot = robot;
@@ -1081,8 +1080,8 @@ public partial class MainViewModel : ObservableObject
         public Task CaptureDualHoldAsync(CubeFace face, string label, CancellationToken cancellationToken) =>
             _captureDualHold(face, label, cancellationToken);
 
-        public Task CapturePitchedFaceAsync(string label, CancellationToken cancellationToken) =>
-            _capturePitched(label, cancellationToken);
+        public Task CapturePitchedFaceAsync(CubeFace face, string label, CancellationToken cancellationToken) =>
+            _capturePitched(face, label, cancellationToken);
 
         public Task ScanTurnRight90Async(CancellationToken cancellationToken) =>
             _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
