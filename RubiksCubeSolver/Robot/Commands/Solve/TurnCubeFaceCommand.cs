@@ -1,77 +1,78 @@
 using RubiksCubeSolver.Models;
-using RubiksCubeSolver.Robot.Actuation;
-using RubiksCubeSolver.Robot.Commands.Scan;
-using RubiksCubeSolver.Robot.Commands.Shared;
 
 namespace RubiksCubeSolver.Robot.Commands.Solve;
 
 public sealed class TurnCubeFaceCommand
 {
-    readonly IRobotActuator _robot;
-    readonly HugCommand _hug;
-    readonly ScanSecureRlThenTbClearCommand _secureRl;
-    readonly ScanPitchReturnToFrontCommand _pitchReturn;
-    readonly QuarterTurnStationCommand _quarterTurn;
+    readonly SolveCommandSet _moves;
 
-    public TurnCubeFaceCommand(
-        IRobotActuator robot,
-        HugCommand hug,
-        ScanSecureRlThenTbClearCommand secureRl,
-        ScanPitchReturnToFrontCommand pitchReturn,
-        QuarterTurnStationCommand quarterTurn)
+    public TurnCubeFaceCommand(SolveCommandSet moves) => _moves = moves;
+
+    public Task ExecuteAsync(CubeMove move, CancellationToken cancellationToken) =>
+        ExecuteSequenceAsync([move], onStep: null, cancellationToken);
+
+    public async Task ExecuteSequenceAsync(
+        IReadOnlyList<CubeMove> moves,
+        Func<CubeMove, CancellationToken, Task>? onStep,
+        CancellationToken cancellationToken)
     {
-        _robot = robot;
-        _hug = hug;
-        _secureRl = secureRl;
-        _pitchReturn = pitchReturn;
-        _quarterTurn = quarterTurn;
-    }
-
-    public async Task ExecuteAsync(CubeMove move, CancellationToken cancellationToken)
-    {
-        var station = _robot.Orientation.StationOf(move.Face);
-        var restoreFront = false;
-        var restoreOpposite = false;
-        if (station is RobotStation.Front or RobotStation.Back)
-        {
-            _robot.OnCommand?.Invoke($"{move}: pitch Front onto Top, reset idle turners, turn, then Front back to camera");
-            restoreOpposite = await DockFrontOrBackOnGripperAsync(move.Face, cancellationToken);
-            station = _robot.Orientation.StationOf(move.Face);
-            if (station is RobotStation.Front or RobotStation.Back)
-            {
-                throw new InvalidOperationException($"Cannot bring {move.Face} to a Top/Bottom gripper.");
-            }
-
-            restoreFront = true;
-        }
-
-        for (int i = 0; i < move.QuarterTurns; i++)
+        var steps = ExpandDoubles(moves);
+        for (int i = 0; i < steps.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _quarterTurn.ExecuteAsync(station, cancellationToken);
-        }
+            var move = steps[i];
+            var prime = move.QuarterTurns == 3;
+            if (move.Face is CubeFace.F or CubeFace.B)
+            {
+                var pitchOpposite = await _moves.FrontBack.PitchFrontOntoGripperAsync(cancellationToken);
+                while (true)
+                {
+                    await _moves.FrontBack.TurnAsync(move.Face, prime, cancellationToken);
+                    if (onStep is not null)
+                    {
+                        await onStep(move, cancellationToken);
+                    }
 
-        if (restoreFront)
-        {
-            await _secureRl.ExecuteAsync(cancellationToken);
-            await _robot.PitchSpin90Async(cancellationToken, opposite: !restoreOpposite);
-            await _hug.ExecuteAsync(cancellationToken);
+                    if (i + 1 >= steps.Count || steps[i + 1].Face is not CubeFace.F and not CubeFace.B)
+                    {
+                        break;
+                    }
+
+                    _moves.FrontBack.Log($"Peek: next {steps[i + 1]} is also F/B — turn before restoring forward");
+
+                    i++;
+                    move = steps[i];
+                    prime = move.QuarterTurns == 3;
+                }
+
+                await _moves.FrontBack.RestoreForwardAsync(pitchOpposite, cancellationToken);
+                continue;
+            }
+
+            await _moves.For(move.Face, prime).ExecuteAsync(cancellationToken);
+            if (onStep is not null)
+            {
+                await onStep(move, cancellationToken);
+            }
         }
     }
 
-    async Task<bool> DockFrontOrBackOnGripperAsync(CubeFace face, CancellationToken cancellationToken)
+    static List<CubeMove> ExpandDoubles(IReadOnlyList<CubeMove> moves)
     {
-        var ontoTopOpposite = !_robot.Settings.InvertPitch;
-        await _secureRl.ExecuteAsync(cancellationToken);
-        await _robot.PitchSpin90Async(cancellationToken, opposite: ontoTopOpposite);
-        if (_robot.Orientation.StationOf(face) is not RobotStation.Front and not RobotStation.Back)
+        var steps = new List<CubeMove>(moves.Count);
+        foreach (var move in moves)
         {
-            return ontoTopOpposite;
+            if (move.QuarterTurns == 2)
+            {
+                steps.Add(new CubeMove(move.Face, 1));
+                steps.Add(new CubeMove(move.Face, 1));
+            }
+            else
+            {
+                steps.Add(move);
+            }
         }
 
-        await _pitchReturn.ExecuteAsync(cancellationToken);
-        await _secureRl.ExecuteAsync(cancellationToken);
-        await _robot.PitchSpin90Async(cancellationToken, opposite: !ontoTopOpposite);
-        return !ontoTopOpposite;
+        return steps;
     }
 }

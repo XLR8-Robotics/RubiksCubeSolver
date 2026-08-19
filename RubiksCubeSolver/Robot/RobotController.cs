@@ -46,7 +46,9 @@ public sealed class RobotController : IDisposable
         var prepareTopBottomTurn = new PrepareForTopBottomTurnCommand(_actuator);
         var prepareLeftRightTurn = new PrepareForLeftRightTurnCommand(_actuator);
         _quarterTurn = new QuarterTurnStationCommand(_actuator, prepareTopBottomTurn, prepareLeftRightTurn);
-        _turnCubeFace = new TurnCubeFaceCommand(_actuator, _hug, secureRl, _pitchReturn, _quarterTurn);
+        var frontBack = new FrontBackSolveRoutine(_actuator, _hug, secureRl, _pitchReturn, prepareTopBottomTurn, prepareLeftRightTurn);
+        var solveMoves = new SolveCommandSet(_actuator, frontBack, prepareTopBottomTurn, prepareLeftRightTurn);
+        _turnCubeFace = new TurnCubeFaceCommand(solveMoves);
         _display = new DisplayCommand(_actuator);
     }
 
@@ -80,6 +82,12 @@ public sealed class RobotController : IDisposable
 
     public Task TurnCubeFaceAsync(CubeMove move, CancellationToken cancellationToken) =>
         _turnCubeFace.ExecuteAsync(move, cancellationToken);
+
+    public Task ExecuteSolveSequenceAsync(
+        IReadOnlyList<CubeMove> moves,
+        Func<CubeMove, CancellationToken, Task>? onStep,
+        CancellationToken cancellationToken) =>
+        _turnCubeFace.ExecuteSequenceAsync(moves, onStep, cancellationToken);
 
     public IReadOnlyList<(RobotStation Station, CubeMove Move)> CreateGrippedScramble(int moves) =>
         GrippedScramble.Create(_actuator.Orientation, moves);

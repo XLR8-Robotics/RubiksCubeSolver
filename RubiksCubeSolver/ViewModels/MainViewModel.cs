@@ -666,6 +666,36 @@ public partial class MainViewModel : ObservableObject
         await RunExclusiveAsync("Zen mode", RunZenModeAsync);
     }
 
+    [RelayCommand]
+    public async Task TestSolveMoveAsync(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
+        var moves = CubeMove.ParseSequence(token);
+        if (moves.Count != 1)
+        {
+            AppendLog($"Unknown solve command '{token}'.");
+            return;
+        }
+
+        await RunExclusiveAsync($"Test {token}", async ct =>
+        {
+            AppendLog($"Test solve command: {token}");
+            if (TestMode)
+            {
+                await PlayDigitalMoveAsync(moves[0], ct);
+                return;
+            }
+
+            EnsureRobot();
+            await _robot!.TurnCubeFaceAsync(moves[0], ct);
+            await PlayDigitalMoveAsync(moves[0], ct);
+        });
+    }
+
     async Task SolveAsync(CancellationToken cancellationToken)
     {
         if (TestMode)
@@ -846,18 +876,29 @@ public partial class MainViewModel : ObservableObject
 
     async Task ExecuteMovesAsync(IReadOnlyList<CubeMove> moves, string verb, CancellationToken cancellationToken, double progressStart, double progressSpan)
     {
-        for (int i = 0; i < moves.Count; i++)
+        if (TestMode || _robot is null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Progress = progressStart + progressSpan * (i + 1) / Math.Max(1, moves.Count);
-            StatusText = $"{verb} {moves[i]} ({i + 1}/{moves.Count})";
-            AppendLog($"{verb} {i + 1}/{moves.Count}: {moves[i]}");
-            Task robotMove = TestMode || _robot is null
-                ? Task.CompletedTask
-                : _robot.TurnCubeFaceAsync(moves[i], cancellationToken);
-            await PlayDigitalMoveAsync(moves[i], cancellationToken);
-            await robotMove;
+            for (int i = 0; i < moves.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Progress = progressStart + progressSpan * (i + 1) / Math.Max(1, moves.Count);
+                StatusText = $"{verb} {moves[i]} ({i + 1}/{moves.Count})";
+                AppendLog($"{verb} {i + 1}/{moves.Count}: {moves[i]}");
+                await PlayDigitalMoveAsync(moves[i], cancellationToken);
+            }
+
+            return;
         }
+
+        var completed = 0;
+        await _robot.ExecuteSolveSequenceAsync(moves, async (step, ct) =>
+        {
+            completed++;
+            Progress = progressStart + progressSpan * completed / Math.Max(1, moves.Count);
+            StatusText = $"{verb} {step} ({completed})";
+            AppendLog($"{verb} {completed}: {step}");
+            await PlayDigitalMoveAsync(step, ct);
+        }, cancellationToken);
     }
 
     async Task DisplaySolvedAsync(CancellationToken cancellationToken)
@@ -909,16 +950,7 @@ public partial class MainViewModel : ObservableObject
                 await _robot!.HugAsync(ct);
             }
 
-            for (int i = 0; i < moves.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-                Progress = (i + 1) / (double)moves.Count;
-                StatusText = $"Executing {moves[i]} ({i + 1}/{moves.Count})";
-                AppendLog($"Move {i + 1}/{moves.Count}: {moves[i]}");
-                Task robotMove = TestMode ? Task.CompletedTask : _robot!.TurnCubeFaceAsync(moves[i], ct);
-                await PlayDigitalMoveAsync(moves[i], ct);
-                await robotMove;
-            }
+            await ExecuteMovesAsync(moves, "Executing", ct, progressStart: 0, progressSpan: 1);
 
             AppendLog(TestMode ? "Test mode: cube solved digitally from the net." : "Cube solved from manual net.");
         });

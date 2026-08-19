@@ -52,6 +52,7 @@ public interface IRobotActuator
     void SetArm(ArmCalibration arm, bool inside, bool squeeze = false, int? squeezeExtraUs = null);
     void SetArmMicroseconds(ArmCalibration arm, double microseconds);
     void SetGripper(GripperCalibration gripper, bool turned);
+    void SetGripperQuarterTurn(GripperCalibration gripper, bool prime);
     void NeutralGripper(GripperCalibration gripper);
     void AllArmsOut();
     void NeutralGrippers();
