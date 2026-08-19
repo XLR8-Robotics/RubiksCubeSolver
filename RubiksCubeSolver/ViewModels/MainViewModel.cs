@@ -882,7 +882,7 @@ public partial class MainViewModel : ObservableObject
             await _robot!.ScanTurnRight90CountAsync(cancellationToken, 1);
             AppendLog($"{label}: dual hold photo (TB hold + RL hold, merge)");
             await CaptureFaceDualHoldAsync(face, label);
-            AppendLog($"{label}: RL_IN, TB_OUT, yaw turners home (keep {face} at camera)");
+            AppendLog($"{label}: RL_IN secure, TB_OUT, yaw home, TB_IN, RL_OUT (keep {face} at camera)");
             await _robot.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
             LogState($"{label} photo");
         }
@@ -968,27 +968,27 @@ public partial class MainViewModel : ObservableObject
         await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.B, "BACK");
         await TurnOnceDualPhotoTurnerHomeAsync(CubeFace.L, "LEFT");
 
-        AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch handoff)");
+        AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch phase)");
         await _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
         LogState("back at FRONT for pitch");
 
-        AppendLog("TOP: handoff + pitch");
-        await _robot.ScanHandoffToPitchAsync(cancellationToken);
+        AppendLog("TOP: RL secure, TB clear, pitch up");
         await _robot.ScanPitchToTopAsync(cancellationToken);
         await CaptureFaceAsync(CubeFace.U, "TOP");
         LogState("TOP photo");
 
-        AppendLog("TOP: restore FRONT orientation");
-        await _robot.ScanRestoreFrontAfterPitchAsync(cancellationToken);
+        AppendLog("TOP: TB secure, RL clear, pitch turners home → FRONT");
+        await _robot.ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
         LogState("TOP restore");
 
-        AppendLog("BOTTOM: pitch to expose Down");
+        AppendLog("BOTTOM: RL secure, TB clear, pitch down");
         await _robot.ScanPitchToBottomAsync(cancellationToken);
         await CaptureFaceAsync(CubeFace.D, "BOTTOM");
         LogState("BOTTOM photo");
 
-        AppendLog("FINISH: restore FRONT, RL_IN, TB_IN");
-        await _robot.ScanFinishAtFrontAsync(cancellationToken);
+        AppendLog("FINISH: TB secure, pitch home → FRONT, hug cube");
+        await _robot.ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
+        await _robot.ScanFinishHugAtFrontAsync(cancellationToken);
         LogState("scan complete");
 
         if (_robot.CurrentCameraFace != CubeFace.F)

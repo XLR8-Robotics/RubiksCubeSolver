@@ -515,8 +515,49 @@ public sealed class RobotController : IDisposable
             SequenceYawResetAsync(ct, resetCubeOrientation: true), cancellationToken);
 
     public Task ScanYawTurnersHomeKeepFaceAsync(CancellationToken cancellationToken) =>
-        CommandAsync("RL_IN, TB_OUT, yaw home (keep face)", ct =>
-            SequenceYawResetAsync(ct, resetCubeOrientation: false), cancellationToken);
+        CommandAsync("RL_IN secure, TB_OUT, yaw home, TB_IN, RL_OUT", ScanYawTurnersHomeKeepFaceCoreAsync, cancellationToken);
+
+    async Task ScanYawTurnersHomeKeepFaceCoreAsync(CancellationToken cancellationToken)
+    {
+        await HoldPitchTurnersStillAsync(cancellationToken);
+        await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        await TopBottomOutAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+        await YawTurnersToStartAsync(cancellationToken);
+        await TopBottomInAsync(cancellationToken, squeeze: false);
+        await LeftRightOutAsync(cancellationToken);
+    }
+
+    public Task ScanSecureRlThenTbClearAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL_IN secure, then TB_OUT clear", async ct =>
+        {
+            await LeftRightInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), ct);
+            await TopBottomOutAsync(ct);
+            await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, ct);
+            await Task.Delay(Math.Max(800, _settings.SettleMs * 4), ct);
+            await HoldYawTurnersStillAsync(ct);
+        }, cancellationToken);
+
+    public Task ScanPitchTurnersHomeTbHoldingAsync(CancellationToken cancellationToken, bool resetCubeOrientation = false) =>
+        CommandAsync(resetCubeOrientation ? "TB_IN secure, RL_OUT, pitch home → FRONT" : "TB_IN secure, RL_OUT, pitch home",
+            ct => ScanPitchTurnersHomeTbHoldingCoreAsync(ct, resetCubeOrientation), cancellationToken);
+
+    async Task ScanPitchTurnersHomeTbHoldingCoreAsync(CancellationToken cancellationToken, bool resetCubeOrientation)
+    {
+        await HoldPitchTurnersStillAsync(cancellationToken);
+        await HoldYawTurnersStillAsync(cancellationToken);
+        await TopBottomInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        await LeftRightOutAsync(cancellationToken, clearOfCube: true);
+        await PitchTurnersToStartAsync(cancellationToken);
+        if (resetCubeOrientation)
+        {
+            ResetOrientation();
+        }
+    }
 
     public Task ScanRetractTbBetweenTurnsAsync(CancellationToken cancellationToken) =>
         CommandAsync("TB_OUT, hold yaw, TB_IN (between turns)", async ct =>
@@ -565,29 +606,27 @@ public sealed class RobotController : IDisposable
         ScanTurnRight90CountAsync(cancellationToken, 1);
 
     public Task ScanHandoffToPitchAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Handoff to pitch (RL_IN, TB_OUT, yaw home)", ct => SequenceHandoffToPitchAsync(ct), cancellationToken);
+        ScanSecureRlThenTbClearAsync(cancellationToken);
 
     public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Pitch to TOP", ct => SequencePitch90Async(ct, opposite: false), cancellationToken);
+        CommandAsync("Pitch to TOP (RL secure, TB clear)", async ct =>
+        {
+            await ScanSecureRlThenTbClearAsync(ct);
+            await PitchSpin90Async(ct, opposite: false);
+        }, cancellationToken);
 
     public Task ScanPitchToBottomAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Pitch to BOTTOM", ct => SequencePitch90Async(ct, opposite: true), cancellationToken);
+        CommandAsync("Pitch to BOTTOM (RL secure, TB clear)", async ct =>
+        {
+            await ScanSecureRlThenTbClearAsync(ct);
+            await PitchSpin90Async(ct, opposite: true);
+        }, cancellationToken);
 
     public Task ScanRestoreFrontAfterPitchAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Restore FRONT after pitch", ct => SequencePitchResetAsync(ct, resetCubeOrientation: true), cancellationToken);
+        ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
 
-    public Task ScanFinishAtFrontAsync(CancellationToken cancellationToken) =>
-        CommandAsync("Scan finish: FRONT, RL_IN, TB_IN", async ct =>
-        {
-            if (Orientation.Front != CubeFace.F)
-            {
-                OnCommand?.Invoke($"Expected FRONT at camera before finish (currently {Orientation.Front})");
-            }
-
-            await SequencePitchResetAsync(ct, resetCubeOrientation: true);
-            await LeftRightInAsync(ct, squeeze: false);
-            await TopBottomInAsync(ct, squeeze: false);
-        }, cancellationToken);
+    public Task ScanFinishHugAtFrontAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Scan finish: RL_IN, TB_IN hug", ct => SequenceScanHugAsync(ct), cancellationToken);
 
     public CubeFace CurrentCameraFace => Orientation.Front;
 
