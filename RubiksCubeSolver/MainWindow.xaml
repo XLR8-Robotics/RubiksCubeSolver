@@ -240,7 +240,13 @@
                                              ToolTip="Photos averaged per side during scan (1–12). More frames = better color read, slower scan."/>
                                     <TextBlock Text="Scan hold squeeze" Width="120" VerticalAlignment="Center"/>
                                     <TextBox Text="{Binding Settings.ScanHoldSqueezeUs}" Width="60" Margin="0,0,16,0"
-                                             ToolTip="Extra grip when one arm pair holds the cube while the other pair moves away during scan."/>
+                                             ToolTip="Extra grip for photos when one arm pair holds the cube."/>
+                                    <TextBlock Text="Turn grip squeeze" Width="110" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.TurnGripSqueezeUs}" Width="60" Margin="0,0,16,0"
+                                             ToolTip="Lighter grip for 90° turns (lower = less stall). Try 60–100."/>
+                                    <TextBlock Text="Turn speed cap" Width="100" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Settings.TurnSpeedCap}" Width="50" Margin="0,0,16,0"
+                                             ToolTip="Max turner speed during dual tumbles (lower = gentler). 0 = use calibration."/>
                                     <TextBlock Text="Face margin" Width="90" VerticalAlignment="Center"
                                                ToolTip="Old inset value. 0 = largest grid, 0.42 = smallest. Prefer Grid size on the Scan grid tab."/>
                                     <TextBox Text="{Binding FaceMargin}" Width="80" Margin="0,0,16,0"/>
@@ -256,7 +262,15 @@
                                     <TextBox Text="{Binding Settings.TumbleTrimUs}" Width="80"
                                              ToolTip="Subtract from pair yaw/pitch. Use 15–25 if Left/Right go past 90° (about 92°)."/>
                                 </StackPanel>
-                                <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" Background="{StaticResource AccentBrush}" HorizontalAlignment="Left"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="Auto calibrate turns" Command="{Binding HugAndAutoCalibrateTurnsAsyncCommand}"
+                                            Background="{StaticResource OkBrush}" Foreground="#102016" Margin="0,0,12,0"
+                                            ToolTip="Hug cube, derive turn grip/speed/trim from your arm calibration, then test one gentle yaw turn."/>
+                                    <Button Content="Auto calibrate turns (no hug)" Command="{Binding AutoCalibrateTurnSettingsCommand}" Margin="0,0,12,0"
+                                            ToolTip="Test turn only — cube should already be hugged."/>
+                                    <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" Background="{StaticResource AccentBrush}"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding TurnCalibrationSummary}" TextWrapping="Wrap" Opacity="0.85" Margin="0,0,0,8"/>
                             </StackPanel>
                         </Border>
 

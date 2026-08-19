@@ -51,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 11;
+    public const int CurrentCalibrationVersion = 12;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -61,6 +61,9 @@ public sealed class AppSettings
     public int ScanFramesPerFace { get; set; } = 4;
     public int ScanFrameGapMs { get; set; } = 150;
     public int ScanHoldSqueezeUs { get; set; } = 220;
+    public int TurnGripSqueezeUs { get; set; } = 90;
+    public int TurnSpeedCap { get; set; } = 30;
+    public int TurnAccelerationCap { get; set; } = 50;
     public double FaceMargin { get; set; } = 0.22;
     public double FaceOffsetX { get; set; }
     public double FaceOffsetY { get; set; }
@@ -72,7 +75,7 @@ public sealed class AppSettings
     public int ZenDisplaySeconds { get; set; } = 15;
     public int TumbleSqueezeUs { get; set; } = 150;
     public int PitchExtraUs { get; set; }
-    public int TumbleTrimUs { get; set; } = 20;
+    public int TumbleTrimUs { get; set; } = 35;
     public int SettleMs { get; set; } = 120;
     public int MovementTimeoutMs { get; set; } = 4000;
     public int CalibrationVersion { get; set; }
@@ -156,6 +159,11 @@ public sealed class AppSettings
             if (settings.CalibrationVersion < 11)
             {
                 settings.ApplyScanCaptureDefaults();
+            }
+
+            if (settings.CalibrationVersion < 12)
+            {
+                settings.ApplyTurnGentleDefaults();
             }
 
             settings.CalibrationVersion = CurrentCalibrationVersion;
@@ -248,6 +256,24 @@ public sealed class AppSettings
         if (ScanHoldSqueezeUs <= 0)
         {
             ScanHoldSqueezeUs = 220;
+        }
+    }
+
+    public void ApplyTurnGentleDefaults()
+    {
+        if (TurnGripSqueezeUs <= 0)
+        {
+            TurnGripSqueezeUs = 90;
+        }
+
+        if (TurnSpeedCap <= 0)
+        {
+            TurnSpeedCap = 30;
+        }
+
+        if (TurnAccelerationCap <= 0)
+        {
+            TurnAccelerationCap = 50;
         }
     }
 

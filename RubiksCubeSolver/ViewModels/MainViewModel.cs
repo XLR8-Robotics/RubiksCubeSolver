@@ -523,6 +523,67 @@ public partial class MainViewModel : ObservableObject
         AppendLog($"Scan grid saved to settings.json (inset {Settings.FaceMargin:F2}, right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, box {Settings.FaceSampleInset:F2}).");
     }
 
+    [ObservableProperty]
+    string _turnCalibrationSummary = "Run auto calibrate turns with a cube loaded (or test mode for math-only).";
+
+    [RelayCommand]
+    public async Task AutoCalibrateTurnSettingsAsync()
+    {
+        if (TestMode)
+        {
+            var derived = TurnSettingsCalibrator.DeriveFromCalibration(Settings);
+            TurnCalibrationSummary = derived.Summary;
+            foreach (var line in derived.LogLines)
+            {
+                AppendLog($"Turn auto-cal: {line}");
+            }
+
+            AppendLog($"Turn auto-cal: {derived.Summary}. Press Save settings to keep.");
+            return;
+        }
+
+        await RunExclusiveAsync("Auto calibrate turns", async ct =>
+        {
+            EnsureRobot();
+            AppendLog("Turn auto-cal: hugging cube, then test turn...");
+            await _robot!.HugAsync(ct);
+            var result = await _robot.AutoCalibrateTurnSettingsAsync(ct);
+            TurnCalibrationSummary = result.Summary;
+            foreach (var line in result.LogLines)
+            {
+                AppendLog($"Turn auto-cal: {line}");
+            }
+
+            AppendLog($"Turn auto-cal: {result.Summary}. Press Save settings to keep.");
+        });
+    }
+
+    [RelayCommand]
+    public async Task HugAndAutoCalibrateTurnsAsync()
+    {
+        if (TestMode)
+        {
+            await AutoCalibrateTurnSettingsAsync();
+            return;
+        }
+
+        await RunExclusiveAsync("Hug and auto calibrate turns", async ct =>
+        {
+            EnsureRobot();
+            await _robot!.HugAsync(ct);
+            await Task.Delay(Math.Max(400, Settings.SettleMs * 3), ct);
+            AppendLog("Cube hugged. Running turn auto-calibrate...");
+            var result = await _robot.AutoCalibrateTurnSettingsAsync(ct);
+            TurnCalibrationSummary = result.Summary;
+            foreach (var line in result.LogLines)
+            {
+                AppendLog($"Turn auto-cal: {line}");
+            }
+
+            AppendLog($"Turn auto-cal: {result.Summary}. Press Save settings to keep.");
+        });
+    }
+
     [RelayCommand]
     public void SaveSettings()
     {

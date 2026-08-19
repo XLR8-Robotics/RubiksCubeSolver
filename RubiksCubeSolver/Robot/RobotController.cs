@@ -502,12 +502,12 @@ public sealed class RobotController : IDisposable
         ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
 
     public Task ScanPrepareForYawTurnAsync(CancellationToken cancellationToken) =>
-        CommandAsync("TB_IN (squeeze), RL_OUT — yaw grip", async ct =>
+        CommandAsync("TB_IN (turn grip), RL_OUT — yaw grip", async ct =>
         {
-            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.TurnGripSqueezeUs);
             await LeftRightOutAsync(ct);
             await HoldPitchTurnersStillAsync(ct);
-            await Task.Delay(Math.Max(300, _settings.SettleMs * 2), ct);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 3), ct);
         }, cancellationToken);
 
     public Task ScanYawResetAfterPhotoAsync(CancellationToken cancellationToken) =>
@@ -565,7 +565,7 @@ public sealed class RobotController : IDisposable
             await TopBottomOutAsync(ct);
             await Task.Delay(Math.Max(500, _settings.SettleMs * 3), ct);
             await HoldYawTurnersStillAsync(ct);
-            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await TopBottomInAsync(ct, squeeze: true, squeezeExtraUs: _settings.TurnGripSqueezeUs);
             await LeftRightOutAsync(ct);
             await HoldPitchTurnersStillAsync(ct);
             await Task.Delay(Math.Max(300, _settings.SettleMs * 2), ct);
@@ -627,6 +627,82 @@ public sealed class RobotController : IDisposable
 
     public Task ScanFinishHugAtFrontAsync(CancellationToken cancellationToken) =>
         CommandAsync("Scan finish: RL_IN, TB_IN hug", ct => SequenceScanHugAsync(ct), cancellationToken);
+
+    public async Task<TurnCalibrationResult> AutoCalibrateTurnSettingsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        OnCommand?.Invoke("Auto calibrate turn settings");
+
+        var log = new List<string>();
+        var derived = TurnSettingsCalibrator.DeriveFromCalibration(_settings);
+        log.AddRange(derived.LogLines);
+        OnCommand?.Invoke(derived.Summary);
+
+        ResetOrientation();
+        var hardwareValidated = false;
+        for (int pass = 0; pass < 3; pass++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (ok, elapsedMs, travelFraction) = await ProbeYawTurnAsync(cancellationToken);
+            log.Add($"Probe {pass + 1}: {elapsedMs} ms, travel {travelFraction:P0}.");
+            await ScanYawTurnersHomeKeepFaceCoreAsync(cancellationToken);
+            ResetOrientation();
+
+            if (ok)
+            {
+                hardwareValidated = true;
+                log.Add(pass == 0
+                    ? "First probe succeeded."
+                    : $"Probe succeeded after {pass + 1} attempt(s).");
+                break;
+            }
+
+            TurnSettingsCalibrator.SoftenForStall(_settings, log);
+            if (pass == 2)
+            {
+                log.Add("Probe still strained after 3 passes — using softest derived values.");
+            }
+        }
+
+        await HugAsync(cancellationToken);
+        return TurnSettingsCalibrator.FromSettings(_settings, hardwareValidated, log);
+    }
+
+    async Task<(bool Ok, long ElapsedMs, double TravelFraction)> ProbeYawTurnAsync(CancellationToken cancellationToken)
+    {
+        await ScanPrepareForYawTurnAsync(cancellationToken);
+        if (PairNearStart(_settings.TopTurner, _settings.BottomTurner) != true)
+        {
+            OnCommand?.Invoke("Turn probe blocked — yaw turners not at Start");
+            return (false, 0, 0);
+        }
+
+        var invert = _settings.InvertYaw;
+        var (targetTop, targetBottom) = PairDualTumbleTargets(_settings.TopTurner, _settings.BottomTurner, invert, 0);
+        var expectedTravel = Math.Max(
+            Math.Abs(targetTop - _settings.TopTurner.StartUs),
+            Math.Abs(targetBottom - _settings.BottomTurner.StartUs));
+        var minExpectedMs = (int)Math.Clamp(expectedTravel / 1.2 + 200, 400, _settings.MovementTimeoutMs);
+
+        var started = Environment.TickCount64;
+        await SpinPairAsync(_settings.TopTurner, _settings.BottomTurner, invert, cancellationToken, yawMatchedOpposite: true);
+        var elapsedMs = Environment.TickCount64 - started;
+
+        var posTop = _maestro.GetPositionMicroseconds(_settings.TopTurner.Port) ?? _settings.TopTurner.StartUs;
+        var posBottom = _maestro.GetPositionMicroseconds(_settings.BottomTurner.Port) ?? _settings.BottomTurner.StartUs;
+        var actualTravel = Math.Max(
+            Math.Abs(posTop - _settings.TopTurner.StartUs),
+            Math.Abs(posBottom - _settings.BottomTurner.StartUs));
+        var travelFraction = expectedTravel > 1 ? actualTravel / expectedTravel : 1;
+
+        var stalled = elapsedMs > minExpectedMs * 2.2 || travelFraction < 0.82;
+        if (!stalled)
+        {
+            Orientation.Yaw(invert);
+        }
+
+        return (!stalled, elapsedMs, travelFraction);
+    }
 
     public CubeFace CurrentCameraFace => Orientation.Front;
 
@@ -1028,11 +1104,23 @@ public sealed class RobotController : IDisposable
         var distA = Math.Max(1, Math.Abs(toA - fromA));
         var distB = Math.Max(1, Math.Abs(toB - fromB));
         var shorter = Math.Min(distA, distB);
-        const double baseSpeed = 50;
+        var baseSpeed = (ushort)Math.Min(a.Speed, b.Speed);
+        if (baseSpeed < 1)
+        {
+            baseSpeed = 28;
+        }
+
+        if (_settings.TurnSpeedCap > 0)
+        {
+            baseSpeed = (ushort)Math.Min(baseSpeed, _settings.TurnSpeedCap);
+        }
+
         var speedA = (ushort)Math.Clamp(Math.Round(baseSpeed * distA / shorter), 1, 255);
         var speedB = (ushort)Math.Clamp(Math.Round(baseSpeed * distB / shorter), 1, 255);
-        _maestro.SetAcceleration(a.Port, 0);
-        _maestro.SetAcceleration(b.Port, 0);
+        var accelCap = _settings.TurnAccelerationCap > 0 ? _settings.TurnAccelerationCap : 50;
+        var accel = (ushort)Math.Clamp(Math.Min(a.Acceleration, b.Acceleration), 20, accelCap);
+        _maestro.SetAcceleration(a.Port, accel);
+        _maestro.SetAcceleration(b.Port, accel);
         _maestro.SetSpeed(a.Port, speedA);
         _maestro.SetSpeed(b.Port, speedB);
     }
