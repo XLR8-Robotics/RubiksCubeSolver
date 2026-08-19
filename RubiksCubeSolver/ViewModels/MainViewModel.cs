@@ -800,7 +800,7 @@ public partial class MainViewModel : ObservableObject
     async Task<List<Scalar[]>> ScanAllFacesAsync(CancellationToken cancellationToken)
     {
         var map = new Dictionary<CubeFace, Scalar[]>();
-        AppendLog("Scan: F merge, yaw R, reset, yaw F, reset, yaw L, reset, yaw B merge, yaw to F, pitch U, T/B hold then L/R out-reset-in, pitch back, reset, pitch D, hug.");
+        AppendLog("Scan: F merge, yaw R/L/B, yaw to F, pitch Top, photo, T/B in L/R out reset in T/B out, pitch Front, reset, pitch Bottom, photo, reset, pitch Front, hug.");
 
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
         {
@@ -862,17 +862,24 @@ public partial class MainViewModel : ObservableObject
         await _robot.YawScanAsync(cancellationToken);
         await _robot.HandoffToLeftRightParkTopBottomAsync(cancellationToken);
 
+        AppendLog("Pitch: Left/Right point Top at the camera.");
         await _robot.PitchScanAsync(cancellationToken);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
+        AppendLog("Pitch reset: Top/Bottom in, Left/Right out, Start, Left/Right in, Top/Bottom out.");
         await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        AppendLog("Pitch: Left/Right spin Front to the camera.");
         await _robot.PitchScanAsync(cancellationToken, opposite: true);
 
+        AppendLog("Pitch reset: Top/Bottom in, Left/Right out, Start, Left/Right in, Top/Bottom out.");
         await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        AppendLog("Pitch: Left/Right point Bottom at the camera.");
         await _robot.PitchScanAsync(cancellationToken, opposite: true);
         await CaptureOpenAsync(_robot.Orientation.Front);
 
+        AppendLog("Pitch reset: Top/Bottom in, Left/Right out, Start, Left/Right in, Top/Bottom out.");
         await _robot.ResetPitchTurnersForScanAsync(cancellationToken);
+        AppendLog("Pitch: Left/Right spin Front to the camera, then hug.");
         await _robot.PitchScanAsync(cancellationToken);
         await _robot.FinishScanHugAsync(cancellationToken);
 

@@ -326,18 +326,21 @@ public sealed class RobotController : IDisposable
 
     public async Task PitchScanAsync(CancellationToken cancellationToken, bool opposite = false)
     {
-        if (!PitchTurnersHomed)
-        {
-            await ResetPitchTurnersForScanAsync(cancellationToken);
-        }
-
-        if (!PitchTurnersHomed)
+        if (!PitchTurnersHomed || PairNearStart(_settings.LeftTurner, _settings.RightTurner) == false)
         {
             await ResetPitchTurnersForScanAsync(cancellationToken);
         }
 
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
+
+        var (targetA, targetB) = PairTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
+        if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetA, targetB))
+        {
+            await ResetPitchTurnersForScanAsync(cancellationToken);
+            await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken, squeeze: true);
+        }
+
         await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs);
         SetArm(_settings.LeftArm, inside: true, squeeze: true);
         SetArm(_settings.RightArm, inside: true, squeeze: true);
@@ -375,7 +378,7 @@ public sealed class RobotController : IDisposable
         SetArm(armB, inside: false);
         await WaitAsync(cancellationToken);
         await WaitUntilArmsNearAsync(armA, armB, retracted: true, cancellationToken);
-        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
         await ReversePairToStartAsync(turnerA, turnerB, cancellationToken);
     }
 
@@ -422,34 +425,37 @@ public sealed class RobotController : IDisposable
         await Task.Delay(Math.Max(80, _settings.SettleMs), cancellationToken);
         ConfigureGripper(a);
         ConfigureGripper(b);
-        MarkPairHomed(a, b, homed: PairNearStart(a, b) != false);
+        MarkPairHomed(a, b, homed: true);
     }
 
     async Task WaitUntilArmsNearAsync(ArmCalibration a, ArmCalibration b, bool retracted, CancellationToken cancellationToken)
     {
         var start = Environment.TickCount64;
+        var confirmed = false;
         while (Environment.TickCount64 - start < _settings.MovementTimeoutMs)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var readyA = ArmNearPose(a, retracted);
             var readyB = ArmNearPose(b, retracted);
-            if (readyA != false && readyB != false)
+            if (readyA == true && readyB == true)
             {
-                if (readyA == true && readyB == true)
-                {
-                    return;
-                }
-
-                await Task.Delay(Math.Max(350, _settings.SettleMs * 2), cancellationToken);
-                return;
+                confirmed = true;
+                break;
             }
 
-            SetArm(a, inside: !retracted, squeeze: !retracted);
-            SetArm(b, inside: !retracted, squeeze: !retracted);
-            await Task.Delay(120, cancellationToken);
+            if (readyA == false || readyB == false)
+            {
+                SetArm(a, inside: !retracted, squeeze: !retracted);
+                SetArm(b, inside: !retracted, squeeze: !retracted);
+            }
+
+            await Task.Delay(150, cancellationToken);
         }
 
-        await Task.Delay(Math.Max(600, _settings.SettleMs * 3), cancellationToken);
+        if (!confirmed)
+        {
+            await Task.Delay(Math.Max(1000, _settings.SettleMs * 5), cancellationToken);
+        }
     }
 
     bool? ArmNearPose(ArmCalibration arm, bool retracted)
@@ -466,6 +472,17 @@ public sealed class RobotController : IDisposable
         var distTarget = Math.Abs(pos.Value - target);
         var distOther = Math.Abs(pos.Value - other);
         return distTarget <= Math.Max(80, travel * 0.15) || distTarget + 40 < distOther;
+    }
+
+    bool SpinWouldBeTooFar(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
+    {
+        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
+        mag = Math.Max(1, mag - Math.Max(0, _settings.TumbleTrimUs));
+        var posA = _maestro.GetPositionMicroseconds(a.Port);
+        var posB = _maestro.GetPositionMicroseconds(b.Port);
+        var tooFarA = posA is not null && Math.Abs(targetA - posA.Value) > mag * 1.25;
+        var tooFarB = posB is not null && Math.Abs(targetB - posB.Value) > mag * 1.25;
+        return tooFarA || tooFarB;
     }
 
     bool? PairNearStart(GripperCalibration a, GripperCalibration b)
