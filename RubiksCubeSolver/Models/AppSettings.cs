@@ -22,7 +22,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 2;
+    public const int CurrentCalibrationVersion = 5;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -38,13 +38,13 @@ public sealed class AppSettings
     public int CalibrationVersion { get; set; }
 
     public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700 };
-    public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1285.25, OutUs = 992 };
+    public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1446, OutUs = 2496 };
     public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 992, EndUs = 1700 };
-    public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 904.25, OutUs = 992 };
+    public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 963, OutUs = 2233 };
     public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700 };
-    public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 992 };
+    public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 2496 };
     public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1079.50, EndUs = 1774 };
-    public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1408, OutUs = 1040 };
+    public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1408, OutUs = 2496 };
 
     public static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -72,7 +72,26 @@ public sealed class AppSettings
 
         if (settings.CalibrationVersion < CurrentCalibrationVersion)
         {
-            settings.ApplyCenteredHome();
+            if (settings.CalibrationVersion < 2)
+            {
+                settings.ApplyCenteredHome();
+            }
+
+            if (settings.CalibrationVersion < 3)
+            {
+                settings.ApplyRightArmTravel();
+            }
+
+            if (settings.CalibrationVersion < 4)
+            {
+                settings.ApplyTopAndLeftArmTravel();
+            }
+
+            if (settings.CalibrationVersion < 5)
+            {
+                settings.ApplyBottomArmOpen();
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -85,19 +104,45 @@ public sealed class AppSettings
         RightTurner.Port = 0;
         RightTurner.StartUs = 1036;
         RightArm.Port = 1;
-        RightArm.InUs = 1285.25;
+        RightArm.InUs = 1446;
+        RightArm.OutUs = 2496;
         TopTurner.Port = 2;
         TopTurner.StartUs = 992;
         TopArm.Port = 3;
-        TopArm.InUs = 904.25;
+        TopArm.InUs = 963;
+        TopArm.OutUs = 2233;
         LeftTurner.Port = 6;
         LeftTurner.StartUs = 1026.25;
         LeftArm.Port = 7;
         LeftArm.InUs = 1597.75;
+        LeftArm.OutUs = 2496;
         BottomTurner.Port = 8;
         BottomTurner.StartUs = 1079.50;
         BottomArm.Port = 9;
         BottomArm.InUs = 1408;
+        BottomArm.OutUs = 2496;
+    }
+
+    public void ApplyRightArmTravel()
+    {
+        RightArm.Port = 1;
+        RightArm.InUs = 1446;
+        RightArm.OutUs = 2496;
+    }
+
+    public void ApplyTopAndLeftArmTravel()
+    {
+        TopArm.Port = 3;
+        TopArm.InUs = 963;
+        TopArm.OutUs = 2233;
+        LeftArm.Port = 7;
+        LeftArm.OutUs = 2496;
+    }
+
+    public void ApplyBottomArmOpen()
+    {
+        BottomArm.Port = 9;
+        BottomArm.OutUs = 2496;
     }
 
     public void Save()
