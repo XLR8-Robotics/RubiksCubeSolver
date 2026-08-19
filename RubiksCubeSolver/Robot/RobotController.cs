@@ -150,7 +150,7 @@ public sealed class RobotController : IDisposable
     {
         var invert = _settings.InvertPitch ^ opposite;
         await HoldPairAsync(_settings.LeftArm, _settings.RightArm, _settings.TopArm, _settings.BottomArm, cancellationToken);
-        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs, mirrorPair: false);
+        await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, cancellationToken, _settings.PitchExtraUs, pitchMatchedOpposite: true);
         AllArmsIn();
         await WaitAsync(cancellationToken);
         await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
@@ -335,14 +335,14 @@ public sealed class RobotController : IDisposable
         CommandAsync(opposite ? "Pitch 90° the other way" : "Pitch 90°", async ct =>
         {
             var invert = _settings.InvertPitch ^ opposite;
-            var (targetA, targetB) = PairTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs, mirrorPair: false);
+            var (targetA, targetB) = PairPitchTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
             if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetA, targetB))
             {
                 OnCommand?.Invoke("Pitch 90° blocked (would be ~180°) — turners are not at Start");
                 return;
             }
 
-            await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs, mirrorPair: false);
+            await SpinPairAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs, pitchMatchedOpposite: true);
             Orientation.Pitch(invert);
         }, cancellationToken);
 
@@ -468,9 +468,11 @@ public sealed class RobotController : IDisposable
     const double ServoMinUs = 256;
     const double ServoMaxUs = 2496;
 
-    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true)
+    async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true, bool pitchMatchedOpposite = false)
     {
-        var (targetA, targetB) = PairTumbleTargets(a, b, invertDirection, extraUs, mirrorPair);
+        var (targetA, targetB) = pitchMatchedOpposite
+            ? PairPitchTumbleTargets(a, b, invertDirection, extraUs)
+            : PairTumbleTargets(a, b, invertDirection, extraUs, mirrorPair);
         MatchPairSpeeds(a, b, a.StartUs, b.StartUs, targetA, targetB);
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
@@ -659,6 +661,37 @@ public sealed class RobotController : IDisposable
         var targetA = a.StartUs + dirA * mag;
         var targetB = b.StartUs + dirB * mag;
         return (Math.Clamp(targetA, ServoMinUs, ServoMaxUs), Math.Clamp(targetB, ServoMinUs, ServoMaxUs));
+    }
+
+    (double TargetLeft, double TargetRight) PairPitchTumbleTargets(GripperCalibration left, GripperCalibration right, bool invertDirection, int extraUs = 0)
+    {
+        var mag = Math.Min(Math.Abs(left.EndUs - left.StartUs), Math.Abs(right.EndUs - right.StartUs));
+        mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
+        mag = Math.Max(mag, 1);
+
+        var signLeft = Math.Sign(left.EndUs - left.StartUs);
+        if (signLeft == 0) signLeft = 1;
+        var leftDir = invertDirection ? -signLeft : signLeft;
+
+        var maxUpLeft = ServoMaxUs - left.StartUs;
+        var maxDownLeft = left.StartUs - ServoMinUs;
+        var maxUpRight = ServoMaxUs - right.StartUs;
+        var maxDownRight = right.StartUs - ServoMinUs;
+        if (leftDir > 0)
+        {
+            mag = Math.Min(mag, maxUpLeft);
+            mag = Math.Min(mag, maxDownRight);
+        }
+        else
+        {
+            mag = Math.Min(mag, maxDownLeft);
+            mag = Math.Min(mag, maxUpRight);
+        }
+
+        mag = Math.Max(mag, 1);
+        var targetLeft = left.StartUs + leftDir * mag;
+        var targetRight = right.StartUs - leftDir * mag;
+        return (Math.Clamp(targetLeft, ServoMinUs, ServoMaxUs), Math.Clamp(targetRight, ServoMinUs, ServoMaxUs));
     }
 
     void MatchPairSpeeds(GripperCalibration a, GripperCalibration b, double fromA, double fromB, double toA, double toB)
