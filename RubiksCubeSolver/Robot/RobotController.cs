@@ -304,7 +304,8 @@ public sealed class RobotController : IDisposable
         SetArm(_settings.TopArm, inside: true, squeeze: true);
         SetArm(_settings.BottomArm, inside: true, squeeze: true);
         await WaitAsync(cancellationToken);
-        await Task.Delay(Math.Max(250, _settings.SettleMs), cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: false, cancellationToken);
+        await Task.Delay(Math.Max(300, _settings.SettleMs * 2), cancellationToken);
         await RetractThenHomeTurnersAsync(_settings.LeftArm, _settings.RightArm, _settings.LeftTurner, _settings.RightTurner, cancellationToken);
         await Task.Delay(Math.Max(200, _settings.SettleMs), cancellationToken);
         SetArm(_settings.LeftArm, inside: true, squeeze: true);
@@ -341,6 +342,7 @@ public sealed class RobotController : IDisposable
         SetArm(_settings.LeftArm, inside: true, squeeze: true);
         SetArm(_settings.RightArm, inside: true, squeeze: true);
         await WaitAsync(cancellationToken);
+        await Task.Delay(Math.Max(200, _settings.SettleMs), cancellationToken);
         Orientation.Pitch(invert);
     }
 
@@ -372,8 +374,8 @@ public sealed class RobotController : IDisposable
         SetArm(armA, inside: false);
         SetArm(armB, inside: false);
         await WaitAsync(cancellationToken);
-        await Task.Delay(Math.Max(500, _settings.SettleMs * 2), cancellationToken);
-        await WaitAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(armA, armB, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
         await ReversePairToStartAsync(turnerA, turnerB, cancellationToken);
     }
 
@@ -390,32 +392,80 @@ public sealed class RobotController : IDisposable
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
         await WaitForPairMoveAsync(Math.Max(Math.Abs(targetA - a.StartUs), Math.Abs(targetB - b.StartUs)), cancellationToken);
-        ConfigureGripper(a);
-        ConfigureGripper(b);
         MarkPairHomed(a, b, homed: false);
     }
 
     async Task ReversePairToStartAsync(GripperCalibration a, GripperCalibration b, CancellationToken cancellationToken)
     {
-        var dist = Math.Max(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        MatchPairSpeeds(a, b, a.EndUs, b.EndUs, a.StartUs, b.StartUs);
-        NeutralGripper(a);
-        NeutralGripper(b);
+        var fromA = _maestro.GetPositionMicroseconds(a.Port) ?? a.StartUs;
+        var fromB = _maestro.GetPositionMicroseconds(b.Port) ?? b.StartUs;
+        var dist = Math.Max(Math.Abs(fromA - a.StartUs), Math.Abs(fromB - b.StartUs));
+        if (dist < 40)
+        {
+            dist = Math.Max(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
+        }
+
+        MatchPairSpeeds(a, b, fromA, fromB, a.StartUs, b.StartUs);
+        SetGripperTarget(a, a.StartUs);
+        SetGripperTarget(b, b.StartUs);
         await WaitForPairMoveAsync(dist, cancellationToken);
 
         for (int attempt = 0; attempt < 3 && PairNearStart(a, b) == false; attempt++)
         {
-            NeutralGripper(a);
-            NeutralGripper(b);
+            SetGripperTarget(a, a.StartUs);
+            SetGripperTarget(b, b.StartUs);
             await WaitForPairMoveAsync(Math.Max(120, dist * 0.25), cancellationToken);
         }
 
-        NeutralGripper(a);
-        NeutralGripper(b);
+        SetGripperTarget(a, a.StartUs);
+        SetGripperTarget(b, b.StartUs);
         await Task.Delay(Math.Max(80, _settings.SettleMs), cancellationToken);
         ConfigureGripper(a);
         ConfigureGripper(b);
         MarkPairHomed(a, b, homed: PairNearStart(a, b) != false);
+    }
+
+    async Task WaitUntilArmsNearAsync(ArmCalibration a, ArmCalibration b, bool retracted, CancellationToken cancellationToken)
+    {
+        var start = Environment.TickCount64;
+        while (Environment.TickCount64 - start < _settings.MovementTimeoutMs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var readyA = ArmNearPose(a, retracted);
+            var readyB = ArmNearPose(b, retracted);
+            if (readyA != false && readyB != false)
+            {
+                if (readyA == true && readyB == true)
+                {
+                    return;
+                }
+
+                await Task.Delay(Math.Max(350, _settings.SettleMs * 2), cancellationToken);
+                return;
+            }
+
+            SetArm(a, inside: !retracted, squeeze: !retracted);
+            SetArm(b, inside: !retracted, squeeze: !retracted);
+            await Task.Delay(120, cancellationToken);
+        }
+
+        await Task.Delay(Math.Max(600, _settings.SettleMs * 3), cancellationToken);
+    }
+
+    bool? ArmNearPose(ArmCalibration arm, bool retracted)
+    {
+        var pos = _maestro.GetPositionMicroseconds(arm.Port);
+        if (pos is null)
+        {
+            return null;
+        }
+
+        var target = retracted ? arm.OutUs : arm.InUs;
+        var other = retracted ? arm.InUs : arm.OutUs;
+        var travel = Math.Max(1, Math.Abs(arm.OutUs - arm.InUs));
+        var distTarget = Math.Abs(pos.Value - target);
+        var distOther = Math.Abs(pos.Value - other);
+        return distTarget <= Math.Max(80, travel * 0.15) || distTarget + 40 < distOther;
     }
 
     bool? PairNearStart(GripperCalibration a, GripperCalibration b)
