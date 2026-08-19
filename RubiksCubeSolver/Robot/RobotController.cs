@@ -265,6 +265,7 @@ public sealed class RobotController : IDisposable
     {
         SetArm(holdA, inside: true, squeeze: squeeze);
         SetArm(holdB, inside: true, squeeze: squeeze);
+        await WaitAsync(cancellationToken);
         SetArm(clearA, inside: false);
         SetArm(clearB, inside: false);
         await WaitAsync(cancellationToken);
