@@ -544,6 +544,21 @@ public sealed class RobotController : IDisposable
     public Task ScanYawTurnersHomeAtFrontAsync(CancellationToken cancellationToken) =>
         CommandAsync("RL secure, TB clear, yaw home at FRONT", ScanYawTurnersHomeKeepFaceCoreAsync, cancellationToken);
 
+    public Task ScanPitchTurnersHomeKeepFaceAsync(CancellationToken cancellationToken) =>
+        CommandAsync("RL secure, TB clear, pitch home (keep face)", ScanPitchTurnersHomeKeepFaceCoreAsync, cancellationToken);
+
+    async Task ScanPitchTurnersHomeKeepFaceCoreAsync(CancellationToken cancellationToken)
+    {
+        await HoldYawTurnersStillAsync(cancellationToken);
+        await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        await TopBottomOutAsync(cancellationToken);
+        await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+        await PitchTurnersToStartAsync(cancellationToken);
+        await HoldPitchTurnersStillAsync(cancellationToken);
+    }
+
     public Task ScanPitchTurnersHomeTbHoldingAsync(CancellationToken cancellationToken, bool resetCubeOrientation = false) =>
         CommandAsync(resetCubeOrientation ? "RL secure, TB clear, yaw home, TB secure, pitch home → FRONT" : "RL secure, TB clear, yaw home, TB secure, pitch home",
             ct => ScanPitchTurnersHomeTbHoldingCoreAsync(ct, resetCubeOrientation), cancellationToken);
@@ -631,8 +646,37 @@ public sealed class RobotController : IDisposable
             await PitchSpin90Async(ct, opposite: true);
         }, cancellationToken);
 
+    public Task ScanPitchTopToBottomAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Pitch TOP → BOTTOM (2×90° same dir, retract between)", async ct =>
+        {
+            var invert = _settings.InvertPitch;
+
+            await ScanSecureRlThenTbClearAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            await SpinPairPitchFromCurrentAsync(_settings.LeftTurner, _settings.RightTurner, invert, ct, _settings.PitchExtraUs);
+            Orientation.Pitch(invert);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 3), ct);
+
+            await ScanPitchTurnersHomeKeepFaceAsync(ct);
+
+            await ScanSecureRlThenTbClearAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            await PitchSpin90Async(ct, opposite: false);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 3), ct);
+        }, cancellationToken);
+
+    public Task ScanPitchRestoreFrontAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Pitch BOTTOM → FRONT (1×90° same dir)", async ct =>
+        {
+            await ScanSecureRlThenTbClearAsync(ct);
+            await HoldPitchTurnersStillAsync(ct);
+            await SpinPairPitchFromCurrentAsync(_settings.LeftTurner, _settings.RightTurner, _settings.InvertPitch, ct, _settings.PitchExtraUs);
+            Orientation.Pitch(_settings.InvertPitch);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 3), ct);
+        }, cancellationToken);
+
     public Task ScanRestoreFrontAfterPitchAsync(CancellationToken cancellationToken) =>
-        ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
+        ScanPitchRestoreFrontAsync(cancellationToken);
 
     public Task ScanFinishHugAtFrontAsync(CancellationToken cancellationToken) =>
         CommandAsync("Scan finish: RL_IN, TB_IN hug", ct => SequenceScanHugAsync(ct), cancellationToken);
@@ -830,6 +874,38 @@ public sealed class RobotController : IDisposable
         SetGripperTarget(a, targetA);
         SetGripperTarget(b, targetB);
         MarkPairHomed(a, b, homed: false);
+    }
+
+    async Task SpinPairPitchFromCurrentAsync(
+        GripperCalibration left, GripperCalibration right, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0)
+    {
+        var fromLeft = _maestro.GetPositionMicroseconds(left.Port) ?? left.StartUs;
+        var fromRight = _maestro.GetPositionMicroseconds(right.Port) ?? right.StartUs;
+        var (startTargetLeft, startTargetRight) = PairPitchTumbleTargets(left, right, invertDirection, extraUs);
+        var deltaLeft = startTargetLeft - left.StartUs;
+        var deltaRight = startTargetRight - right.StartUs;
+        var targetLeft = fromLeft + deltaLeft;
+        var targetRight = fromRight + deltaRight;
+        var travelLeft = Math.Abs(deltaLeft);
+        var travelRight = Math.Abs(deltaRight);
+
+        OnCommand?.Invoke(
+            $"Ch{left.Port} {fromLeft:F0}→{targetLeft:F0} ({travelLeft:F0} µs), Ch{right.Port} {fromRight:F0}→{targetRight:F0} ({travelRight:F0} µs) [chained pitch]");
+        if (Math.Abs(travelLeft - travelRight) > 25)
+        {
+            OnCommand?.Invoke($"Chained pitch blocked — travel mismatch (Ch{left.Port} {travelLeft:F0} vs Ch{right.Port} {travelRight:F0})");
+            return;
+        }
+
+        MatchPairSpeeds(left, right, fromLeft, fromRight, targetLeft, targetRight);
+        SetGripperTarget(left, targetLeft);
+        SetGripperTarget(right, targetRight);
+        await WaitForPairMoveAsync(Math.Max(travelLeft, travelRight), cancellationToken);
+        ConfigureGripper(left);
+        ConfigureGripper(right);
+        SetGripperTarget(left, targetLeft);
+        SetGripperTarget(right, targetRight);
+        MarkPairHomed(left, right, homed: false);
     }
 
     async Task FreezePairAtCurrentAsync(GripperCalibration a, GripperCalibration b, CancellationToken cancellationToken)

@@ -943,7 +943,7 @@ public partial class MainViewModel : ObservableObject
             await _robot!.ScanTurnRight90CountAsync(cancellationToken, 1);
             AppendLog($"{label}: dual hold photo (TB hold + RL hold, merge)");
             await CaptureFaceDualHoldAsync(face, label);
-            AppendLog($"{label}: RL_IN secure, TB_OUT, yaw home, TB_IN, RL_OUT (keep {face} at camera)");
+            AppendLog($"{label}: retract TB, unwind yaw turners, re-grip");
             await _robot.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
             LogState($"{label} photo");
         }
@@ -1031,7 +1031,7 @@ public partial class MainViewModel : ObservableObject
 
         AppendLog("RETURN: TURN_R_90 to FRONT (no photo — pitch phase)");
         await _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
-        AppendLog("RETURN: yaw turners home at FRONT before pitch");
+        AppendLog("RETURN: retract TB, unwind yaw turners at FRONT");
         await _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
         LogState("back at FRONT for pitch");
 
@@ -1040,17 +1040,13 @@ public partial class MainViewModel : ObservableObject
         await CaptureFaceAsync(CubeFace.U, "TOP");
         LogState("TOP photo");
 
-        AppendLog("TOP: TB secure, RL clear, pitch turners home → FRONT");
-        await _robot.ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
-        LogState("TOP restore");
-
-        AppendLog("BOTTOM: RL secure, TB clear, pitch down");
-        await _robot.ScanPitchToBottomAsync(cancellationToken);
+        AppendLog("BOTTOM: 2× pitch 90° (TOP→BACK→BOTTOM), retract + unwind between");
+        await _robot.ScanPitchTopToBottomAsync(cancellationToken);
         await CaptureFaceAsync(CubeFace.D, "BOTTOM");
         LogState("BOTTOM photo");
 
-        AppendLog("FINISH: TB secure, pitch home → FRONT, hug cube");
-        await _robot.ScanPitchTurnersHomeTbHoldingAsync(cancellationToken, resetCubeOrientation: true);
+        AppendLog("FINISH: 1× pitch 90° BOTTOM → FRONT, hug");
+        await _robot.ScanPitchRestoreFrontAsync(cancellationToken);
         await _robot.ScanFinishHugAtFrontAsync(cancellationToken);
         LogState("scan complete");
 
