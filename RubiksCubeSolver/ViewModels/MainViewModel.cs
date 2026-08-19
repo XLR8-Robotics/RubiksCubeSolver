@@ -871,7 +871,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         EnsureRobot();
-        AppendLog("Display pose: retracting left, right, and top. Bottom keeps holding.");
+        AppendLog("Display pose: pitch TOP toward camera, bottom holds, left/right/top clear.");
         await _robot!.DisplayAsync(cancellationToken);
         StatusText = "Displaying";
     }

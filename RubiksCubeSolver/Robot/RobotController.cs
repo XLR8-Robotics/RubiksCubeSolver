@@ -118,11 +118,67 @@ public sealed class RobotController : IDisposable
 
     public Task UnloadAsync(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
 
-    public async Task HugAsync(CancellationToken cancellationToken)
+    public Task HugAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Hug cube", EnsureHuggedAsync, cancellationToken);
+
+    async Task EnsureHuggedAsync(CancellationToken cancellationToken)
     {
-        await RetractAllThenHomeTurnersAsync(cancellationToken);
+        await HomeTurnersForHugAsync(cancellationToken);
         AllArmsIn();
         await WaitAsync(cancellationToken);
+    }
+
+    async Task HomeTurnersForHugAsync(CancellationToken cancellationToken)
+    {
+        if (PairNearStart(_settings.LeftTurner, _settings.RightTurner) != true)
+        {
+            await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+            await TopBottomOutAsync(cancellationToken);
+            await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+            await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+            await PitchTurnersToStartAsync(cancellationToken);
+            await TopBottomInAsync(cancellationToken, squeeze: false);
+        }
+
+        if (PairNearStart(_settings.TopTurner, _settings.BottomTurner) != true)
+        {
+            await TopBottomInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+            await LeftRightOutAsync(cancellationToken, clearOfCube: true);
+            await YawTurnersToStartAsync(cancellationToken);
+            await LeftRightInAsync(cancellationToken, squeeze: false);
+        }
+
+        PitchTurnersHomed = true;
+        YawTurnersHomed = true;
+    }
+
+    public Task DisplayAsync(CancellationToken cancellationToken) =>
+        CommandAsync("Display TOP: pitch up, bottom holds, sides/top clear", DisplayCoreAsync, cancellationToken);
+
+    async Task DisplayCoreAsync(CancellationToken cancellationToken)
+    {
+        if (Orientation.Front != CubeFace.U)
+        {
+            await HoldYawTurnersStillAsync(cancellationToken);
+            await LeftRightInAsync(cancellationToken, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+            await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+            await TopBottomOutAsync(cancellationToken);
+            await WaitUntilArmsNearAsync(_settings.TopArm, _settings.BottomArm, retracted: true, cancellationToken);
+            await Task.Delay(Math.Max(800, _settings.SettleMs * 4), cancellationToken);
+            await HoldYawTurnersStillAsync(cancellationToken);
+            await PitchSpin90Async(cancellationToken, opposite: false);
+        }
+
+        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await WaitAsync(cancellationToken);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        SetArm(_settings.TopArm, inside: false);
+        SetArm(_settings.LeftArm, inside: false);
+        SetArm(_settings.RightArm, inside: false);
+        await WaitAsync(cancellationToken);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
     }
 
     public async Task ArmsInHoldAsync(CancellationToken cancellationToken)
@@ -131,20 +187,8 @@ public sealed class RobotController : IDisposable
         await WaitAsync(cancellationToken);
     }
 
-    public async Task DisplayAsync(CancellationToken cancellationToken)
-    {
-        await RetractAllThenHomeTurnersAsync(cancellationToken);
-        SetArm(_settings.BottomArm, inside: true);
-        SetArm(_settings.LeftArm, inside: false);
-        SetArm(_settings.RightArm, inside: false);
-        SetArm(_settings.TopArm, inside: false);
-        await WaitAsync(cancellationToken);
-    }
-
-    public async Task PreviewPoseAsync(CancellationToken cancellationToken)
-    {
-        await HugAsync(cancellationToken);
-    }
+    public Task PreviewPoseAsync(CancellationToken cancellationToken) =>
+        HugAsync(cancellationToken);
 
     public async Task PitchAsync(CancellationToken cancellationToken, bool opposite = false)
     {
@@ -447,8 +491,13 @@ public sealed class RobotController : IDisposable
 
     public async Task SequenceScanHugAsync(CancellationToken cancellationToken)
     {
-        await TopBottomInAsync(cancellationToken, squeeze: false);
-        await LeftRightInAsync(cancellationToken, squeeze: false);
+        SetArm(_settings.BottomArm, inside: true, squeeze: true, squeezeExtraUs: _settings.ScanHoldSqueezeUs);
+        await WaitAsync(cancellationToken);
+        await Task.Delay(Math.Max(400, _settings.SettleMs * 2), cancellationToken);
+        SetArm(_settings.TopArm, inside: true);
+        SetArm(_settings.LeftArm, inside: true);
+        SetArm(_settings.RightArm, inside: true);
+        await WaitAsync(cancellationToken);
     }
 
     public Task HoldTopBottomScanAsync(CancellationToken cancellationToken) =>
