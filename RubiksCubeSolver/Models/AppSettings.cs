@@ -16,6 +16,28 @@ public sealed class GripperCalibration
         var target = StartUs - (EndUs - StartUs);
         return Math.Clamp(target, 256, 2496);
     }
+
+    /// <summary>
+    /// Opposite pulse for a dual tumble. If OppositeEndUs was saved as servo max/min (2496/256)
+    /// on the wrong side of Start, use the mirrored Turn distance instead.
+    /// </summary>
+    public double EffectiveOppositeUs()
+    {
+        var turnSign = Math.Sign(EndUs - StartUs);
+        if (turnSign == 0)
+        {
+            turnSign = 1;
+        }
+
+        var oppositeSign = Math.Sign(OppositeEndUs - StartUs);
+        if (oppositeSign == 0 || oppositeSign == turnSign
+            || OppositeEndUs <= 260 || OppositeEndUs >= 2490)
+        {
+            return MirroredEndUs();
+        }
+
+        return Math.Clamp(OppositeEndUs, 256, 2496);
+    }
 }
 
 public sealed class ArmCalibration
@@ -29,7 +51,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 9;
+    public const int CurrentCalibrationVersion = 10;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -120,6 +142,12 @@ public sealed class AppSettings
             if (settings.CalibrationVersion < 9)
             {
                 settings.ApplyScanGridDefaults();
+            }
+
+            if (settings.CalibrationVersion < 10)
+            {
+                // OppositeEndUs was often saved as 2496 (servo max). Dual tumble needs the mirrored Turn.
+                settings.ApplyMatchedOppositeEnds();
             }
 
             settings.CalibrationVersion = CurrentCalibrationVersion;

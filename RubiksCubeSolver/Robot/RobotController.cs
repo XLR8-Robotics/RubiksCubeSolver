@@ -344,10 +344,12 @@ public sealed class RobotController : IDisposable
                 return;
             }
 
-            var fromLeft = _maestro.GetPositionMicroseconds(_settings.LeftTurner.Port) ?? _settings.LeftTurner.StartUs;
-            var fromRight = _maestro.GetPositionMicroseconds(_settings.RightTurner.Port) ?? _settings.RightTurner.StartUs;
-            var (targetA, targetB) = PairPitchTumbleTargetsFrom(_settings.LeftTurner, _settings.RightTurner, fromLeft, fromRight, invert, _settings.PitchExtraUs);
-            if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetA, targetB))
+            var (targetLeft, targetRight) = PairPitchTumbleTargets(_settings.LeftTurner, _settings.RightTurner, invert, _settings.PitchExtraUs);
+            var mag = Math.Abs(targetLeft - _settings.LeftTurner.StartUs);
+            OnCommand?.Invoke(
+                $"Pitch targets L {_settings.LeftTurner.StartUs:F0}→{targetLeft:F0}, R {_settings.RightTurner.StartUs:F0}→{targetRight:F0} (±{mag:F0} µs)");
+
+            if (SpinWouldBeTooFar(_settings.LeftTurner, _settings.RightTurner, targetLeft, targetRight))
             {
                 OnCommand?.Invoke("Pitch 90° blocked (would be ~180°) — turners are not at Start");
                 return;
@@ -492,12 +494,14 @@ public sealed class RobotController : IDisposable
 
     async Task SpinPairAsync(GripperCalibration a, GripperCalibration b, bool invertDirection, CancellationToken cancellationToken, int extraUs = 0, bool mirrorPair = true, bool pitchMatchedOpposite = false, bool yawMatchedOpposite = false)
     {
-        var fromA = _maestro.GetPositionMicroseconds(a.Port) ?? a.StartUs;
-        var fromB = _maestro.GetPositionMicroseconds(b.Port) ?? b.StartUs;
+        // Dual tumbles always command from calibrated Start so both grippers travel the same µs.
+        // Using live positions let one servo keep a longer leftover path (e.g. 1770 vs 290).
+        var fromA = a.StartUs;
+        var fromB = b.StartUs;
         var (targetA, targetB) = pitchMatchedOpposite
-            ? PairPitchTumbleTargetsFrom(a, b, fromA, fromB, invertDirection, extraUs)
+            ? PairPitchTumbleTargets(a, b, invertDirection, extraUs)
             : yawMatchedOpposite
-                ? PairYawTumbleTargetsFrom(a, b, fromA, fromB, invertDirection, extraUs)
+                ? PairYawTumbleTargets(a, b, invertDirection, extraUs)
                 : PairTumbleTargets(a, b, invertDirection, extraUs, mirrorPair);
 
         var travelA = Math.Abs(targetA - fromA);
@@ -582,12 +586,9 @@ public sealed class RobotController : IDisposable
 
     bool SpinWouldBeTooFar(GripperCalibration a, GripperCalibration b, double targetA, double targetB)
     {
-        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        mag = Math.Max(1, mag - Math.Max(0, _settings.TumbleTrimUs));
-        var posA = _maestro.GetPositionMicroseconds(a.Port);
-        var posB = _maestro.GetPositionMicroseconds(b.Port);
-        var tooFarA = posA is not null && Math.Abs(targetA - posA.Value) > mag * 1.25;
-        var tooFarB = posB is not null && Math.Abs(targetB - posB.Value) > mag * 1.25;
+        var mag = ComputeTumbleMagnitude(a, b, 0);
+        var tooFarA = Math.Abs(targetA - a.StartUs) > mag * 1.25;
+        var tooFarB = Math.Abs(targetB - b.StartUs) > mag * 1.25;
         return tooFarA || tooFarB;
     }
 
@@ -668,13 +669,7 @@ public sealed class RobotController : IDisposable
 
     (double TargetA, double TargetB) PairTumbleTargets(GripperCalibration a, GripperCalibration b, bool invertDirection, int extraUs = 0, bool mirrorPair = true)
     {
-        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
-        mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
-        mag = Math.Min(mag, a.StartUs - ServoMinUs);
-        mag = Math.Min(mag, b.StartUs - ServoMinUs);
-        mag = Math.Min(mag, ServoMaxUs - a.StartUs);
-        mag = Math.Min(mag, ServoMaxUs - b.StartUs);
-        mag = Math.Max(mag, 1);
+        var mag = ComputeTumbleMagnitude(a, b, extraUs);
 
         var signA = Math.Sign(a.EndUs - a.StartUs);
         var signB = Math.Sign(b.EndUs - b.StartUs);
@@ -688,59 +683,36 @@ public sealed class RobotController : IDisposable
             dirB = -dirB;
         }
 
-        var targetA = a.StartUs + dirA * mag;
-        var targetB = b.StartUs + dirB * mag;
-        return (Math.Clamp(targetA, ServoMinUs, ServoMaxUs), Math.Clamp(targetB, ServoMinUs, ServoMaxUs));
+        return EqualOppositePairTargets(a.StartUs, b.StartUs, dirA, dirB, mag);
     }
 
-    (double TargetLeft, double TargetRight) PairPitchTumbleTargets(GripperCalibration left, GripperCalibration right, bool invertDirection, int extraUs = 0) =>
-        PairPitchTumbleTargetsFrom(left, right, left.StartUs, right.StartUs, invertDirection, extraUs);
-
-    (double TargetLeft, double TargetRight) PairPitchTumbleTargetsFrom(
-        GripperCalibration left, GripperCalibration right,
-        double fromLeft, double fromRight,
-        bool invertDirection, int extraUs = 0)
+    (double TargetLeft, double TargetRight) PairPitchTumbleTargets(GripperCalibration left, GripperCalibration right, bool invertDirection, int extraUs = 0)
     {
         var mag = ComputeTumbleMagnitude(left, right, extraUs);
         var leftDir = PitchLeftDirection(left, invertDirection);
         var rightDir = -leftDir;
-
-        mag = Math.Min(mag, MaxTravelInDirection(fromLeft, leftDir));
-        mag = Math.Min(mag, MaxTravelInDirection(fromRight, rightDir));
-        mag = Math.Max(mag, 1);
-
-        return EqualOppositePairTargets(fromLeft, fromRight, leftDir, rightDir, mag);
+        return EqualOppositePairTargets(left.StartUs, right.StartUs, leftDir, rightDir, mag);
     }
 
-    (double TargetTop, double TargetBottom) PairYawTumbleTargets(GripperCalibration top, GripperCalibration bottom, bool invertDirection, int extraUs = 0) =>
-        PairYawTumbleTargetsFrom(top, bottom, top.StartUs, bottom.StartUs, invertDirection, extraUs);
-
-    (double TargetTop, double TargetBottom) PairYawTumbleTargetsFrom(
-        GripperCalibration top, GripperCalibration bottom,
-        double fromTop, double fromBottom,
-        bool invertDirection, int extraUs = 0)
+    (double TargetTop, double TargetBottom) PairYawTumbleTargets(GripperCalibration top, GripperCalibration bottom, bool invertDirection, int extraUs = 0)
     {
         var mag = ComputeTumbleMagnitude(top, bottom, extraUs);
         var topDir = PitchLeftDirection(top, invertDirection);
         var bottomDir = -topDir;
-
-        mag = Math.Min(mag, MaxTravelInDirection(fromTop, topDir));
-        mag = Math.Min(mag, MaxTravelInDirection(fromBottom, bottomDir));
-        mag = Math.Max(mag, 1);
-
-        return EqualOppositePairTargets(fromTop, fromBottom, topDir, bottomDir, mag);
+        return EqualOppositePairTargets(top.StartUs, bottom.StartUs, topDir, bottomDir, mag);
     }
 
     (double TargetA, double TargetB) EqualOppositePairTargets(double fromA, double fromB, int dirA, int dirB, double mag)
     {
-        var targetA = fromA + dirA * mag;
-        var targetB = fromB + dirB * mag;
-        targetA = Math.Clamp(targetA, ServoMinUs, ServoMaxUs);
-        targetB = Math.Clamp(targetB, ServoMinUs, ServoMaxUs);
+        mag = Math.Min(mag, MaxTravelInDirection(fromA, dirA));
+        mag = Math.Min(mag, MaxTravelInDirection(fromB, dirB));
+        mag = Math.Max(mag, 1);
+
+        var targetA = Math.Clamp(fromA + dirA * mag, ServoMinUs, ServoMaxUs);
+        var targetB = Math.Clamp(fromB + dirB * mag, ServoMinUs, ServoMaxUs);
 
         var actualMag = Math.Min(Math.Abs(targetA - fromA), Math.Abs(targetB - fromB));
         actualMag = Math.Max(actualMag, 1);
-
         targetA = Math.Clamp(fromA + dirA * actualMag, ServoMinUs, ServoMaxUs);
         targetB = Math.Clamp(fromB + dirB * actualMag, ServoMinUs, ServoMaxUs);
         return (targetA, targetB);
@@ -758,7 +730,12 @@ public sealed class RobotController : IDisposable
 
     double ComputeTumbleMagnitude(GripperCalibration a, GripperCalibration b, int extraUs)
     {
-        var mag = Math.Min(Math.Abs(a.EndUs - a.StartUs), Math.Abs(b.EndUs - b.StartUs));
+        // Cap by Turn travel and Opposite travel so the downward gripper cannot run to servo min (256).
+        var turnA = Math.Abs(a.EndUs - a.StartUs);
+        var turnB = Math.Abs(b.EndUs - b.StartUs);
+        var oppositeA = Math.Abs(a.EffectiveOppositeUs() - a.StartUs);
+        var oppositeB = Math.Abs(b.EffectiveOppositeUs() - b.StartUs);
+        var mag = Math.Min(Math.Min(turnA, turnB), Math.Min(oppositeA, oppositeB));
         mag += extraUs - Math.Max(0, _settings.TumbleTrimUs);
         return Math.Max(mag, 1);
     }
