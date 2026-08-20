@@ -73,4 +73,22 @@ public class AppSettingsTests
             File.Delete(tempPath);
         }
     }
+
+    [Fact]
+    public void MergeScanGridIntoFile_WritesRedOrangeHueSplit()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
+        try
+        {
+            var settings = new AppSettings { RedOrangeHueSplit = 12 };
+            settings.MergeScanGridIntoFile(tempPath);
+
+            var root = JsonNode.Parse(File.ReadAllText(tempPath))!.AsObject();
+            Assert.Equal(12, root["RedOrangeHueSplit"]!.GetValue<int>());
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
 }

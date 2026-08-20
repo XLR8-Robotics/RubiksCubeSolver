@@ -181,4 +181,18 @@ public class MainViewModelScanGridTests
         Assert.True(viewModel.FaceAutoDetect);
         Assert.Contains(nameof(MainViewModel.FaceAutoDetect), notifications);
     }
+
+    [Fact]
+    public void RedOrangeHueSplit_ClampsOutOfRangeValuesToDefaultBand()
+    {
+        var viewModel = new MainViewModel(new AppSettings { RedOrangeHueSplit = 0 }, runStartupTasks: false);
+
+        Assert.Equal(8, viewModel.RedOrangeHueSplit);
+
+        viewModel.RedOrangeHueSplit = 12;
+        Assert.Equal(12, viewModel.RedOrangeHueSplit);
+
+        viewModel.RedOrangeHueSplit = 99;
+        Assert.Equal(8, viewModel.RedOrangeHueSplit);
+    }
 }

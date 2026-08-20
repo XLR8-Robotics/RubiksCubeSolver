@@ -89,6 +89,7 @@ public sealed class AppSettings
     public double FaceOffsetY { get; set; }
     public double FaceSampleInset { get; set; } = 0.18;
     public bool FaceAutoDetect { get; set; }
+    public int RedOrangeHueSplit { get; set; } = ColorClassifier.DefaultRedOrangeHueSplit;
     public List<NormalizedScanRect>? ScanRectangles { get; set; }
     public bool InvertPitch { get; set; }
     public bool InvertYaw { get; set; }
@@ -224,6 +225,7 @@ public sealed class AppSettings
             settings.Save();
         }
 
+        settings.RedOrangeHueSplit = ColorClassifier.ClampRedOrangeHueSplit(settings.RedOrangeHueSplit);
         return settings;
     }
 
@@ -303,6 +305,8 @@ public sealed class AppSettings
         {
             FaceSampleInset = 0.18;
         }
+
+        RedOrangeHueSplit = ColorClassifier.ClampRedOrangeHueSplit(RedOrangeHueSplit);
     }
 
     public void ApplyScanCaptureDefaults()
@@ -413,6 +417,7 @@ public sealed class AppSettings
         root["FaceOffsetY"] = FaceOffsetY;
         root["FaceSampleInset"] = FaceSampleInset;
         root["FaceAutoDetect"] = FaceAutoDetect;
+        root["RedOrangeHueSplit"] = ColorClassifier.ClampRedOrangeHueSplit(RedOrangeHueSplit);
         root["ScanRectangles"] = System.Text.Json.JsonSerializer.SerializeToNode(ScanRectangles);
         root["RotatePhotos180"] = RotatePhotos180;
         root["CalibrationVersion"] = CurrentCalibrationVersion;

@@ -232,6 +232,22 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public int RedOrangeHueSplit
+    {
+        get => ColorClassifier.ClampRedOrangeHueSplit(Settings.RedOrangeHueSplit);
+        set
+        {
+            var next = ColorClassifier.ClampRedOrangeHueSplit(value);
+            if (Settings.RedOrangeHueSplit == next)
+            {
+                return;
+            }
+
+            Settings.RedOrangeHueSplit = next;
+            OnPropertyChanged();
+        }
+    }
+
     public bool FaceAutoDetect
     {
         get => Settings.FaceAutoDetect;
@@ -555,7 +571,8 @@ public partial class MainViewModel : ObservableObject
         Settings.MergeScanGridIntoFile();
         AppendLog(
             $"Scan grid saved with {ScanRectangles.Count} custom boxes " +
-            $"(right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}).");
+            $"(right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, " +
+            $"red/orange split {RedOrangeHueSplit}).");
     }
 
     public void ReplaceScanRectangles(IReadOnlyList<NormalizedScanRect> rectangles)
@@ -858,7 +875,7 @@ public partial class MainViewModel : ObservableObject
         AppendLog("Hugging cube...");
         await _robot.HugAsync(cancellationToken);
         var faces = await ScanAllFacesAsync(cancellationToken);
-        var stickers = ColorClassifier.ClassifyCube(faces);
+        var stickers = ColorClassifier.ClassifyCube(faces, RedOrangeHueSplit);
         var facelets = ColorClassifier.ToKociembaString(stickers);
         AppendLog("Scanned facelet string: " + facelets);
         ApplyStickers(stickers);
@@ -1074,7 +1091,7 @@ public partial class MainViewModel : ObservableObject
 
             if (face == CubeFace.F && indices.Contains(4))
             {
-                var frontCenter = ColorClassifier.Guess(samples[4]);
+                var frontCenter = ColorClassifier.Guess(samples[4], RedOrangeHueSplit);
                 if (frontCenter == StickerColor.White)
                 {
                     AppendLog("Front center read as White — matches logo-face load.");
@@ -1396,7 +1413,7 @@ public partial class MainViewModel : ObservableObject
         CameraImage = bitmap;
         for (int i = 0; i < 9 && i < samples.Length; i++)
         {
-            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i]);
+            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i], RedOrangeHueSplit);
         }
     }
 

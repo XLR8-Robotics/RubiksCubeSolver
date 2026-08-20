@@ -298,6 +298,32 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
+                                <TextBlock Text="COLOR" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                                <TextBlock Text="If orange reads as red, drag toward Orange. If red reads as orange, drag toward Red. The 3×3 preview updates live."
+                                           TextWrapping="Wrap" FontSize="12"
+                                           Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="108"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="48"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Red / orange" VerticalAlignment="Center"
+                                               ToolTip="Hue boundary between red and orange. Lower = more orange, higher = more red."/>
+                                    <Slider Grid.Column="1"
+                                            Minimum="3" Maximum="16"
+                                            IsSnapToTickEnabled="True" TickFrequency="1"
+                                            Value="{Binding RedOrangeHueSplit, Mode=TwoWay}"
+                                            SmallChange="1" LargeChange="2"
+                                            ToolTip="Orange ←   → Red"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding RedOrangeHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                </Grid>
+                                <DockPanel Margin="0,-8,0,16">
+                                    <TextBlock DockPanel.Dock="Left" Text="Orange" FontSize="11" Foreground="#FF5800"/>
+                                    <TextBlock DockPanel.Dock="Right" Text="Red" FontSize="11" Foreground="#C41E3A" HorizontalAlignment="Right"/>
+                                    <TextBlock/>
+                                </DockPanel>
+
                                 <TextBlock Text="GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
