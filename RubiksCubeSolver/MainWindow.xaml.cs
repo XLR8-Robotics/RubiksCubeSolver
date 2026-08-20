@@ -1,3 +1,4 @@
+using RubiksCubeSolver.Models;
 using RubiksCubeSolver.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         var vm = new MainViewModel();
         DataContext = vm;
+        ScanGridEditor.MoveGridRequested += vm.MoveScanLayout;
+        ScanGridEditor.ScaleGridRequested += vm.ScaleScanLayout;
+        ScanGridEditor.MoveBoxRequested += vm.MoveScanRectangle;
+        ScanGridEditor.ResizeBoxRequested += vm.ResizeScanRectangle;
+        ScanGridEditor.SourceSize = new Size(vm.CameraFrameWidth, vm.CameraFrameHeight);
         BuildCubeNet(vm);
         vm.AnimateDigitalMove = async (move, commit, ct) =>
         {
@@ -27,9 +33,29 @@ public partial class MainWindow : Window
             {
                 LogScroll.ScrollToEnd();
             }
+
+            if (e.PropertyName is nameof(MainViewModel.CameraFrameWidth)
+                or nameof(MainViewModel.CameraFrameHeight))
+            {
+                ScanGridEditor.SourceSize =
+                    new Size(vm.CameraFrameWidth, vm.CameraFrameHeight);
+                ScanGridEditor.InvalidateVisual();
+            }
         };
         Closed += (_, _) => vm.Closing();
     }
+
+    void MoveGridMode_Click(object sender, RoutedEventArgs e) =>
+        ((MainViewModel)DataContext).ScanGridEditMode = ScanGridEditMode.MoveGrid;
+
+    void ResizeGridMode_Click(object sender, RoutedEventArgs e) =>
+        ((MainViewModel)DataContext).ScanGridEditMode = ScanGridEditMode.ResizeGrid;
+
+    void MoveBoxesMode_Click(object sender, RoutedEventArgs e) =>
+        ((MainViewModel)DataContext).ScanGridEditMode = ScanGridEditMode.MoveBoxes;
+
+    void ResizeBoxesMode_Click(object sender, RoutedEventArgs e) =>
+        ((MainViewModel)DataContext).ScanGridEditMode = ScanGridEditMode.ResizeBoxes;
 
     void BuildCubeNet(MainViewModel vm)
     {

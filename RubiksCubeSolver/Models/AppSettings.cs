@@ -1,4 +1,5 @@
 using System.IO;
+using RubiksCubeSolver.Vision;
 
 namespace RubiksCubeSolver.Models;
 
@@ -88,6 +89,7 @@ public sealed class AppSettings
     public double FaceOffsetY { get; set; }
     public double FaceSampleInset { get; set; } = 0.18;
     public bool FaceAutoDetect { get; set; }
+    public List<NormalizedScanRect>? ScanRectangles { get; set; }
     public bool InvertPitch { get; set; }
     public bool InvertYaw { get; set; }
     public bool TestMode { get; set; }
@@ -367,18 +369,31 @@ public sealed class AppSettings
         File.WriteAllText(FilePath, json);
     }
 
+    public IReadOnlyList<NormalizedScanRect> GetScanRectangles(int frameWidth, int frameHeight) =>
+        ScanGridLayout.ValidateOrRegular(
+            ScanRectangles, FaceMargin, FaceOffsetX, FaceOffsetY, FaceSampleInset,
+            frameWidth, frameHeight);
+
+    public void ResetScanRectangles(int frameWidth, int frameHeight)
+    {
+        ScanRectangles = ScanGridLayout.CreateRegular(
+            FaceMargin, FaceOffsetX, FaceOffsetY, FaceSampleInset,
+            frameWidth, frameHeight).ToList();
+    }
+
     /// <summary>
     /// Writes the current scan-grid fields into settings.json, keeping every other key already on disk.
     /// </summary>
-    public void MergeScanGridIntoFile()
+    public void MergeScanGridIntoFile(string? filePath = null)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        filePath ??= FilePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
         System.Text.Json.Nodes.JsonObject root;
-        if (File.Exists(FilePath))
+        if (File.Exists(filePath))
         {
             try
             {
-                root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(FilePath)) as System.Text.Json.Nodes.JsonObject
+                root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(filePath)) as System.Text.Json.Nodes.JsonObject
                        ?? new System.Text.Json.Nodes.JsonObject();
             }
             catch
@@ -398,10 +413,11 @@ public sealed class AppSettings
         root["FaceOffsetY"] = FaceOffsetY;
         root["FaceSampleInset"] = FaceSampleInset;
         root["FaceAutoDetect"] = FaceAutoDetect;
+        root["ScanRectangles"] = System.Text.Json.JsonSerializer.SerializeToNode(ScanRectangles);
         root["RotatePhotos180"] = RotatePhotos180;
         root["CalibrationVersion"] = CurrentCalibrationVersion;
 
-        File.WriteAllText(FilePath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions
+        File.WriteAllText(filePath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions
         {
             WriteIndented = true
         }));

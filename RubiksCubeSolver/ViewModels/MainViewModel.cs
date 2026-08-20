@@ -76,23 +76,42 @@ public partial class MainViewModel : ObservableObject
 
     readonly DigitalCube _digital = new();
     bool _ignoreCameraChange;
+    bool _regeneratingScanLayout;
 
-    public MainViewModel()
+    public MainViewModel() : this(AppSettings.Load(), runStartupTasks: true)
     {
-        Settings = AppSettings.Load();
+    }
+
+    internal MainViewModel(AppSettings settings, bool runStartupTasks)
+    {
+        Settings = settings;
         Stickers = new ObservableCollection<StickerCell>(Enumerable.Range(0, 54).Select(i => new StickerCell(i)));
         ScanPreviewStickers = new ObservableCollection<StickerCell>(Enumerable.Range(0, 9).Select(i => new StickerCell(i)));
+        ScanRectangles = new ObservableCollection<NormalizedScanRect>(
+            Settings.ScanRectangles is { Count: 9 } && Settings.ScanRectangles.All(ScanGridLayout.IsValid)
+                ? Settings.ScanRectangles
+                : []);
         ApplyStickers(_digital.Colors);
-        RefreshDevices();
         _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
         _previewTimer.Tick += (_, _) => TickPreview();
         TestMode = Settings.TestMode;
+        if (runStartupTasks)
+        {
+            RefreshDevices();
+        }
+
         if (!TestMode)
         {
             AppendLog("Ready. Pick your webcam, connect the Mini Maestro Command Port, then Open the arms and insert a cube.");
             AppendLog("Set the Maestro serial mode to USB Dual Port in Pololu Maestro Control Center.");
             AppendLog("Turn on Test mode to scramble and solve the digital cube with no hardware.");
         }
+
+        if (!runStartupTasks)
+        {
+            return;
+        }
+
         _ = Task.Run(() =>
         {
             try
@@ -111,6 +130,7 @@ public partial class MainViewModel : ObservableObject
     public AppSettings Settings { get; }
     public ObservableCollection<StickerCell> Stickers { get; }
     public ObservableCollection<StickerCell> ScanPreviewStickers { get; }
+    public ObservableCollection<NormalizedScanRect> ScanRectangles { get; }
     public ObservableCollection<SerialDevice> SerialPorts { get; } = [];
     public ObservableCollection<CameraDevice> Cameras { get; } = [];
     public Func<CubeMove, Action, CancellationToken, Task>? AnimateDigitalMove { get; set; }
@@ -127,6 +147,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] bool zenModeRunning;
     [ObservableProperty] double progress;
     [ObservableProperty] string cameraResolution = "";
+    [ObservableProperty] ScanGridEditMode scanGridEditMode = ScanGridEditMode.MoveGrid;
+    [ObservableProperty] int cameraFrameWidth;
+    [ObservableProperty] int cameraFrameHeight;
 
     public bool CanOperate => !IsBusy;
 
@@ -144,6 +167,7 @@ public partial class MainViewModel : ObservableObject
             Settings.FaceMargin = next;
             OnPropertyChanged();
             OnPropertyChanged(nameof(FaceGridSize));
+            RegenerateRegularScanLayout();
         }
     }
 
@@ -170,6 +194,7 @@ public partial class MainViewModel : ObservableObject
 
             Settings.FaceOffsetX = next;
             OnPropertyChanged();
+            RegenerateRegularScanLayout();
         }
     }
 
@@ -186,6 +211,7 @@ public partial class MainViewModel : ObservableObject
 
             Settings.FaceOffsetY = next;
             OnPropertyChanged();
+            RegenerateRegularScanLayout();
         }
     }
 
@@ -202,6 +228,7 @@ public partial class MainViewModel : ObservableObject
 
             Settings.FaceSampleInset = next;
             OnPropertyChanged();
+            RegenerateRegularScanLayout();
         }
     }
 
@@ -407,6 +434,7 @@ public partial class MainViewModel : ObservableObject
             if (frame is not null)
             {
                 ShowFrame(frame);
+                PrepareManualLayoutForFrame(frame.Width, frame.Height);
                 var sampled = FaceScanner.Sample(frame, Settings);
                 ShowFrame(sampled.Preview);
                 sampled.Preview.Dispose();
@@ -459,6 +487,10 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FaceOffsetY));
         OnPropertyChanged(nameof(FaceSampleInset));
         OnPropertyChanged(nameof(FaceAutoDetect));
+        ScanRectangles.Clear();
+        SyncScanRectanglesToSettings();
+        RegenerateRegularScanLayout();
+        SyncScanRectanglesToSettings();
         AppendLog("Scan grid reset to a centered square. Press Keep these settings to save it.");
     }
 
@@ -487,6 +519,7 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(FaceGridSize));
             OnPropertyChanged(nameof(FaceOffsetX));
             OnPropertyChanged(nameof(FaceOffsetY));
+            RegenerateRegularScanLayout();
             AppendLog($"Auto calibrate: grid set (size {FaceGridSize:F2}, right {offsetX:F2}, down {offsetY:F2}). Press Keep these settings to save.");
             TickPreview();
             return;
@@ -518,9 +551,36 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void SaveScanGrid()
     {
+        SyncScanRectanglesToSettings();
         Settings.MergeScanGridIntoFile();
-        AppendLog($"Scan grid saved to settings.json (inset {Settings.FaceMargin:F2}, right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, box {Settings.FaceSampleInset:F2}).");
+        AppendLog(
+            $"Scan grid saved with {ScanRectangles.Count} custom boxes " +
+            $"(right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}).");
     }
+
+    public void ReplaceScanRectangles(IReadOnlyList<NormalizedScanRect> rectangles)
+    {
+        ScanRectangles.Clear();
+        foreach (var rectangle in rectangles)
+        {
+            ScanRectangles.Add(rectangle);
+        }
+    }
+
+    public void MoveScanLayout(double dx, double dy) =>
+        ReplaceScanRectangles(ScanGridLayout.MoveAll(ScanRectangles, dx, dy));
+
+    public void ScaleScanLayout(double factor) =>
+        ReplaceScanRectangles(ScanGridLayout.ScaleAll(ScanRectangles, factor));
+
+    public void MoveScanRectangle(int index, double dx, double dy) =>
+        ReplaceScanRectangles(ScanGridLayout.MoveOne(ScanRectangles, index, dx, dy));
+
+    public void ResizeScanRectangle(int index, double dw, double dh) =>
+        ReplaceScanRectangles(ScanGridLayout.ResizeOne(ScanRectangles, index, dw, dh));
+
+    internal void SyncScanRectanglesToSettings() =>
+        Settings.ScanRectangles = ScanRectangles.ToList();
 
     [ObservableProperty]
     string _turnCalibrationSummary = "Run auto calibrate turns with a cube loaded (or test mode for math-only).";
@@ -979,6 +1039,7 @@ public partial class MainViewModel : ObservableObject
             {
                 using var frame = await _webcam.GrabSettledAsync(settleMs, Settings.RotatePhotos180, cancellationToken)
                                   ?? throw new InvalidOperationException("Camera frame was empty.");
+                PrepareManualLayoutForFrame(frame.Width, frame.Height);
                 var sampled = FaceScanner.Sample(frame, Settings);
                 ShowFrame(sampled.Preview);
                 frames.Add(sampled.Samples);
@@ -1331,6 +1392,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        PrepareManualLayoutForFrame(frame.Width, frame.Height);
         using var overlay = FaceScanner.OverlayLive(frame, Settings, out var samples);
         var bitmap = overlay.ToBitmapSource();
         bitmap.Freeze();
@@ -1338,6 +1400,46 @@ public partial class MainViewModel : ObservableObject
         for (int i = 0; i < 9 && i < samples.Length; i++)
         {
             ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i]);
+        }
+    }
+
+    internal void PrepareManualLayoutForFrame(int frameWidth, int frameHeight)
+    {
+        EnsureScanLayoutForFrame(frameWidth, frameHeight);
+        SyncScanRectanglesToSettings();
+    }
+
+    void EnsureScanLayoutForFrame(int frameWidth, int frameHeight)
+    {
+        CameraFrameWidth = frameWidth;
+        CameraFrameHeight = frameHeight;
+        if (ScanRectangles.Count != 9)
+        {
+            RegenerateRegularScanLayout();
+        }
+    }
+
+    void RegenerateRegularScanLayout()
+    {
+        if (CameraFrameWidth < 1 || CameraFrameHeight < 1 || _regeneratingScanLayout)
+        {
+            return;
+        }
+
+        _regeneratingScanLayout = true;
+        try
+        {
+            ReplaceScanRectangles(ScanGridLayout.CreateRegular(
+                Settings.FaceMargin,
+                Settings.FaceOffsetX,
+                Settings.FaceOffsetY,
+                Settings.FaceSampleInset,
+                CameraFrameWidth,
+                CameraFrameHeight));
+        }
+        finally
+        {
+            _regeneratingScanLayout = false;
         }
     }
 

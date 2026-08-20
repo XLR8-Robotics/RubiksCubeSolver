@@ -170,12 +170,114 @@
                     </Grid.ColumnDefinitions>
                     <Border Style="{StaticResource Panel}" Margin="0,0,10,0">
                         <DockPanel>
+                            <DockPanel.Resources>
+                                <Style x:Key="ScanGridModeButtonStyle" TargetType="RadioButton">
+                                    <Setter Property="Margin" Value="4"/>
+                                    <Setter Property="Padding" Value="10,6"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="RadioButton">
+                                                <Border x:Name="Border"
+                                                        Background="{StaticResource PanelAltBrush}"
+                                                        BorderBrush="{StaticResource PanelAltBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                        <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                        <Setter Property="Foreground" Value="#11161F"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </DockPanel.Resources>
                             <TextBlock DockPanel.Dock="Top" Text="LIVE GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
                             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,8"
                                        Text="Connect the webcam, press Hug cube (auto-calibrates the grid), or press Auto calibrate on a framed face. Fine-tune with sliders if needed, then Keep these settings."/>
-                            <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
-                                <Image Source="{Binding CameraImage}" Stretch="Uniform"/>
-                            </Border>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FaceAutoDetect}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <UniformGrid Rows="1" Margin="0,0,0,8">
+                                        <RadioButton Content="Move Grid" GroupName="ScanEditMode"
+                                                     IsChecked="True"
+                                                     Click="MoveGridMode_Click"
+                                                     Style="{StaticResource ScanGridModeButtonStyle}"/>
+                                        <RadioButton Content="Resize Grid" GroupName="ScanEditMode"
+                                                     Click="ResizeGridMode_Click"
+                                                     Style="{StaticResource ScanGridModeButtonStyle}"/>
+                                        <RadioButton Content="Move Boxes" GroupName="ScanEditMode"
+                                                     Click="MoveBoxesMode_Click"
+                                                     Style="{StaticResource ScanGridModeButtonStyle}"/>
+                                        <RadioButton Content="Resize Boxes" GroupName="ScanEditMode"
+                                                     Click="ResizeBoxesMode_Click"
+                                                     Style="{StaticResource ScanGridModeButtonStyle}"/>
+                                    </UniformGrid>
+                                    <TextBlock TextWrapping="Wrap"
+                                               Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                               Margin="0,0,0,8"
+                                               Text="Drag directly on the camera feed. Individual boxes are numbered 1-9. Sliders, Reset, and Auto calibrate rebuild a regular layout."/>
+                                </StackPanel>
+                                <TextBlock DockPanel.Dock="Top"
+                                           Text="Manual editor hidden while Auto-find face during scans is enabled."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontSize="12"
+                                           Margin="0,0,0,8"
+                                           Visibility="Collapsed">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FaceAutoDetect}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
+                                    <Grid>
+                                        <Image x:Name="ScanGridCameraImage"
+                                               Source="{Binding CameraImage}"
+                                               Stretch="Uniform"/>
+                                        <controls:ScanGridEditor x:Name="ScanGridEditor"
+                                                                 Rectangles="{Binding ScanRectangles}"
+                                                                 EditMode="{Binding ScanGridEditMode}">
+                                            <controls:ScanGridEditor.Style>
+                                                <Style TargetType="controls:ScanGridEditor">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="IsHitTestVisible" Value="True"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FaceAutoDetect}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Setter Property="IsHitTestVisible" Value="False"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </controls:ScanGridEditor.Style>
+                                        </controls:ScanGridEditor>
+                                    </Grid>
+                                </Border>
+                            </DockPanel>
                         </DockPanel>
                     </Border>
                     <Border Grid.Column="1" Style="{StaticResource Panel}">
@@ -248,6 +350,9 @@
                                 <CheckBox Content="Rotate photos 180°" IsChecked="{Binding Settings.RotatePhotos180}" Margin="0,0,0,8"/>
                                 <CheckBox Content="Auto-find face during scans" IsChecked="{Binding FaceAutoDetect}" Margin="0,0,0,12"
                                           ToolTip="When on, each scan photo finds the face square automatically (perspective warp). Best for angled views. Auto calibrate sets the manual grid instead."/>
+                                <TextBlock Text="Custom dragged boxes are used for manual scans. Auto-find uses its own perspective-warped regular grid."
+                                           TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}" Margin="20,-8,0,12"/>
 
                                 <WrapPanel>
                                     <Button Content="Hug cube" Command="{Binding HugForScanGridCommand}" Background="{StaticResource OkBrush}" Foreground="#102016"/>

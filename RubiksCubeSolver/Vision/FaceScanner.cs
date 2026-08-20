@@ -25,9 +25,8 @@ public static class FaceScanner
             return SampleWarped(work, autoQuad, settings.FaceSampleInset);
         }
 
-        var face = CalibratedFaceRect(work.Width, work.Height, settings);
         var preview = work.Clone();
-        var samples = SampleAndDraw(preview, face, settings.FaceSampleInset, draw: true);
+        var samples = SampleAndDraw(preview, ManualPixelRects(work.Width, work.Height, settings), draw: true);
         return new SampledFace { Samples = samples, Preview = preview };
     }
 
@@ -54,8 +53,7 @@ public static class FaceScanner
                 HersheyFonts.HersheySimplex, 0.65, new Scalar(80, 80, 255), 2);
         }
 
-        var face = CalibratedFaceRect(preview.Width, preview.Height, settings);
-        samples = SampleAndDraw(preview, face, settings.FaceSampleInset, draw: true);
+        samples = SampleAndDraw(preview, ManualPixelRects(preview.Width, preview.Height, settings), draw: true);
         return preview;
     }
 
@@ -92,6 +90,9 @@ public static class FaceScanner
         return true;
     }
 
+    public static Rect[] ManualPixelRects(int width, int height, AppSettings settings) =>
+        ScanGridLayout.ToPixelRects(settings.GetScanRectangles(width, height), width, height);
+
     public static Rect CalibratedFaceRect(int width, int height, AppSettings settings)
     {
         var margin = Math.Clamp(settings.FaceMargin, 0, 0.42);
@@ -111,49 +112,20 @@ public static class FaceScanner
         return new Rect(x, y, size, size);
     }
 
-    static Scalar[] SampleAndDraw(Mat bgr, Rect face, double sampleInset, bool draw)
+    static Scalar[] SampleAndDraw(Mat bgr, IReadOnlyList<Rect> rois, bool draw)
     {
+        if (rois.Count != 9)
+            throw new ArgumentException("A scan layout must contain nine rectangles.", nameof(rois));
+
         var samples = new Scalar[9];
-        var inset = Math.Clamp(sampleInset, 0.04, 0.42);
-        var cell = face.Width / 3.0;
-        var pad = cell * inset;
-        var thickness = Math.Max(2, face.Width / 90);
-        var rois = new Rect[9];
-        for (int r = 0; r < 3; r++)
+        var thickness = Math.Max(2, Math.Min(bgr.Width, bgr.Height) / 90);
+        for (var i = 0; i < rois.Count; i++)
         {
-            for (int c = 0; c < 3; c++)
-            {
-                var x = (int)Math.Round(face.X + c * cell + pad);
-                var y = (int)Math.Round(face.Y + r * cell + pad);
-                var w = Math.Max(4, (int)Math.Round(cell - pad * 2));
-                var roi = ClampRect(new Rect(x, y, w, w), bgr.Width, bgr.Height);
-                rois[r * 3 + c] = roi;
-                if (roi.Width > 1 && roi.Height > 1)
-                {
-                    using var patch = bgr.SubMat(roi);
-                    samples[r * 3 + c] = Cv2.Mean(patch);
-                }
-            }
-        }
-
-        if (draw)
-        {
-            Cv2.Rectangle(bgr, face, new Scalar(0, 200, 255), thickness);
-            for (int i = 1; i < 3; i++)
-            {
-                var x = (int)Math.Round(face.X + i * cell);
-                var y = (int)Math.Round(face.Y + i * cell);
-                Cv2.Line(bgr, new Point(x, face.Y), new Point(x, face.Y + face.Height), new Scalar(0, 180, 220), 1);
-                Cv2.Line(bgr, new Point(face.X, y), new Point(face.X + face.Width, y), new Scalar(0, 180, 220), 1);
-            }
-
-            foreach (var roi in rois)
-            {
-                if (roi.Width > 1 && roi.Height > 1)
-                {
-                    Cv2.Rectangle(bgr, roi, new Scalar(0, 255, 255), thickness);
-                }
-            }
+            var roi = ClampRect(rois[i], bgr.Width, bgr.Height);
+            using var patch = bgr.SubMat(roi);
+            samples[i] = Cv2.Mean(patch);
+            if (draw)
+                Cv2.Rectangle(bgr, roi, new Scalar(0, 255, 255), thickness);
         }
 
         return samples;
