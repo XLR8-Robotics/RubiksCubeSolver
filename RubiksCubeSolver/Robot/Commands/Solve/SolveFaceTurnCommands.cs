@@ -36,8 +36,8 @@ public sealed class PitchedFaceTurnCommand : IRobotCommand
 
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        var pitchOpposite = await _routine.PitchFrontOntoGripperAsync(cancellationToken);
-        await _routine.TurnAsync(_face, _prime, cancellationToken);
-        await _routine.RestoreForwardAsync(pitchOpposite, cancellationToken);
+        await _routine.PitchFaceOntoTopAsync(_face, cancellationToken);
+        await _routine.TurnAsUAsync(_prime, cancellationToken);
+        await _routine.RestoreForwardAsync(cancellationToken);
     }
 }

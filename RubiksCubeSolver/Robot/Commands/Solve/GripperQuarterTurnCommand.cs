@@ -40,10 +40,8 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
         await _robot.WaitAsync(cancellationToken);
         await Task.Delay(Math.Max(200, _robot.Settings.SettleMs * 2), cancellationToken);
 
-        _robot.SetArm(arm, inside: false);
-        await _robot.WaitAsync(cancellationToken);
-        await _robot.WaitUntilArmsNearAsync(arm, arm, retracted: true, cancellationToken);
-        await Task.Delay(Math.Max(800, _robot.Settings.SettleMs * 4), cancellationToken);
+        var holdUs = _robot.GetPositionMicroseconds(turner.Port) ?? turner.QuarterTurnTargetUs(_prime);
+        await RetractWhileHoldingTurnAsync(turner, arm, holdUs, cancellationToken);
 
         _robot.NeutralGripper(turner);
         await _robot.WaitAsync(cancellationToken);
@@ -51,6 +49,35 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
 
         SetArmBackIn(arm);
         await _robot.WaitAsync(cancellationToken);
+    }
+
+    async Task RetractWhileHoldingTurnAsync(
+        GripperCalibration turner, ArmCalibration arm, double holdUs, CancellationToken cancellationToken)
+    {
+        _robot.SetGripperMicroseconds(turner, holdUs);
+        _robot.SetArm(arm, inside: false);
+
+        var travel = Math.Max(1, Math.Abs(arm.OutUs - arm.InUs));
+        var atOutUs = Math.Max(50, travel * 0.08);
+        var started = Environment.TickCount64;
+        while (Environment.TickCount64 - started < _robot.Settings.MovementTimeoutMs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _robot.SetGripperMicroseconds(turner, holdUs);
+
+            var pos = _robot.GetPositionMicroseconds(arm.Port);
+            if (pos is not null && Math.Abs(pos.Value - arm.OutUs) <= atOutUs)
+            {
+                break;
+            }
+
+            _robot.SetArm(arm, inside: false);
+            await Task.Delay(40, cancellationToken);
+        }
+
+        _robot.SetGripperMicroseconds(turner, holdUs);
+        await Task.Delay(Math.Max(300, _robot.Settings.SettleMs * 2), cancellationToken);
+        _robot.SetGripperMicroseconds(turner, holdUs);
     }
 
     void SetArmBackIn(ArmCalibration arm)

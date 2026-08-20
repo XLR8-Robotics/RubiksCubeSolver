@@ -455,6 +455,9 @@ public sealed class RobotActuator : IRobotActuator
         SetGripperTarget(gripper, target);
     }
 
+    public void SetGripperMicroseconds(GripperCalibration gripper, double microseconds) =>
+        SetGripperTarget(gripper, microseconds);
+
     public void AllArmsOut()
     {
         SetArm(Settings.RightArm, false);
@@ -502,11 +505,9 @@ public sealed class RobotActuator : IRobotActuator
         }
 
         var target = retracted ? arm.OutUs : arm.InUs;
-        var other = retracted ? arm.InUs : arm.OutUs;
         var travel = Math.Max(1, Math.Abs(arm.OutUs - arm.InUs));
         var distTarget = Math.Abs(pos.Value - target);
-        var distOther = Math.Abs(pos.Value - other);
-        return distTarget <= Math.Max(80, travel * 0.15) || distTarget + 40 < distOther;
+        return distTarget <= Math.Max(80, travel * 0.12);
     }
 
     static bool PairTargetsInRange(GripperCalibration a, GripperCalibration b, double targetA, double targetB) =>

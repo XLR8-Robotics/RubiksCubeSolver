@@ -24,10 +24,10 @@ public sealed class TurnCubeFaceCommand
             var prime = move.QuarterTurns == 3;
             if (move.Face is CubeFace.F or CubeFace.B)
             {
-                var pitchOpposite = await _moves.FrontBack.PitchFrontOntoGripperAsync(cancellationToken);
+                await _moves.FrontBack.PitchFaceOntoTopAsync(move.Face, cancellationToken);
                 while (true)
                 {
-                    await _moves.FrontBack.TurnAsync(move.Face, prime, cancellationToken);
+                    await _moves.FrontBack.TurnAsUAsync(prime, cancellationToken);
                     if (onStep is not null)
                     {
                         await onStep(move, cancellationToken);
@@ -38,14 +38,17 @@ public sealed class TurnCubeFaceCommand
                         break;
                     }
 
-                    _moves.FrontBack.Log($"Peek: next {steps[i + 1]} is also F/B — turn before restoring forward");
-
                     i++;
                     move = steps[i];
                     prime = move.QuarterTurns == 3;
+                    if (!_moves.FrontBack.FaceIsOnTop(move.Face))
+                    {
+                        await _moves.FrontBack.RestoreForwardAsync(cancellationToken);
+                        await _moves.FrontBack.PitchFaceOntoTopAsync(move.Face, cancellationToken);
+                    }
                 }
 
-                await _moves.FrontBack.RestoreForwardAsync(pitchOpposite, cancellationToken);
+                await _moves.FrontBack.RestoreForwardAsync(cancellationToken);
                 continue;
             }
 
