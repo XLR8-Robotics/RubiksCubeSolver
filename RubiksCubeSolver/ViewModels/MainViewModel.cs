@@ -1171,6 +1171,13 @@ public partial class MainViewModel : ObservableObject
 
         async Task CapturePitchedFaceAsync(CubeFace face, string label, CancellationToken ct)
         {
+            var atCamera = _robot.CurrentCameraFace;
+            if (atCamera is CubeFace.U or CubeFace.D && atCamera != face)
+            {
+                AppendLog($"Pitch capture remapped {face} → {atCamera} (face at camera).");
+                face = atCamera;
+            }
+
             var name = face switch
             {
                 CubeFace.U => "TOP",

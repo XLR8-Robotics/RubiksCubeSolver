@@ -34,10 +34,10 @@ public class CubeScanSequenceTests
                 "home-keep-rl",
                 "capture F rl-hold",
                 "pitch-top",
-                "capture-pitched U",
+                "capture-pitched D",
                 "pitch-return",
                 "pitch-bottom",
-                "capture-pitched D",
+                "capture-pitched U",
                 "pitch-return",
                 "finish-hug"
             ],
@@ -48,7 +48,7 @@ public class CubeScanSequenceTests
     {
         public List<string> Calls { get; } = [];
 
-        public CubeFace CurrentCameraFace => CubeFace.F;
+        public CubeFace CurrentCameraFace { get; private set; } = CubeFace.F;
 
         public void Log(string message)
         {
@@ -106,18 +106,22 @@ public class CubeScanSequenceTests
         public Task ScanPitchToTopAsync(CancellationToken cancellationToken)
         {
             Calls.Add("pitch-top");
+            // ScanPitchToTop uses opposite:true; with InvertPitch false that puts D at the camera.
+            CurrentCameraFace = CubeFace.D;
             return Task.CompletedTask;
         }
 
         public Task ScanPitchToBottomAsync(CancellationToken cancellationToken)
         {
             Calls.Add("pitch-bottom");
+            CurrentCameraFace = CubeFace.U;
             return Task.CompletedTask;
         }
 
         public Task ScanPitchReturnToFrontAsync(CancellationToken cancellationToken)
         {
             Calls.Add("pitch-return");
+            CurrentCameraFace = CubeFace.F;
             return Task.CompletedTask;
         }
 

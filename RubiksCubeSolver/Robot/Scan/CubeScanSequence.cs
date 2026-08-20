@@ -141,7 +141,9 @@ public sealed class PitchPhotoReturnStep : IScanStep
             await session.ScanPitchToBottomAsync(cancellationToken);
         }
 
-        await session.CapturePitchedFaceAsync(_toTop ? CubeFace.U : CubeFace.D, _label, cancellationToken);
+        var face = session.CurrentCameraFace;
+        session.Log($"Pitch photo uses CURRENT_FACE={face} (command was {(_toTop ? "TOP" : "BOTTOM")})");
+        await session.CapturePitchedFaceAsync(face, _label, cancellationToken);
         await session.ScanPitchReturnToFrontAsync(cancellationToken);
         var after = _toTop ? "back at FRONT after first pitch" : "back at FRONT after second pitch";
         session.Log($"STATE after {after}: CURRENT_FACE={session.CurrentCameraFace}");
