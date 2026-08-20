@@ -33,23 +33,12 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
             _ => (_robot.Settings.BottomTurner, _robot.Settings.BottomArm)
         };
 
-        if (!GripperNearStart(turner))
-        {
-            await RetractHomeAndReturnAsync(turner, arm, cancellationToken);
-        }
-
         _robot.SetArm(arm, inside: true);
         await _robot.WaitAsync(cancellationToken);
 
         _robot.SetGripperQuarterTurn(turner, _prime);
         await _robot.WaitAsync(cancellationToken);
-
-        await RetractHomeAndReturnAsync(turner, arm, cancellationToken);
-    }
-
-    async Task RetractHomeAndReturnAsync(GripperCalibration turner, ArmCalibration arm, CancellationToken cancellationToken)
-    {
-        _robot.SetGripperQuarterTurn(turner, _prime);
+        await Task.Delay(Math.Max(200, _robot.Settings.SettleMs * 2), cancellationToken);
 
         _robot.SetArm(arm, inside: false);
         await _robot.WaitAsync(cancellationToken);
@@ -58,9 +47,37 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
 
         _robot.NeutralGripper(turner);
         await _robot.WaitAsync(cancellationToken);
+        await WaitUntilGripperNearStartAsync(turner, cancellationToken);
+
+        SetArmBackIn(arm);
+        await _robot.WaitAsync(cancellationToken);
+    }
+
+    void SetArmBackIn(ArmCalibration arm)
+    {
+        if (_station is RobotStation.Top)
+        {
+            _robot.SetArm(arm, inside: true, squeeze: true, squeezeExtraUs: _robot.Settings.HugTopExtraUs);
+            return;
+        }
 
         _robot.SetArm(arm, inside: true);
-        await _robot.WaitAsync(cancellationToken);
+    }
+
+    async Task WaitUntilGripperNearStartAsync(GripperCalibration turner, CancellationToken cancellationToken)
+    {
+        var start = Environment.TickCount64;
+        while (Environment.TickCount64 - start < _robot.Settings.MovementTimeoutMs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (GripperNearStart(turner))
+            {
+                return;
+            }
+
+            _robot.NeutralGripper(turner);
+            await Task.Delay(150, cancellationToken);
+        }
     }
 
     bool GripperNearStart(GripperCalibration turner)
