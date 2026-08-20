@@ -108,6 +108,9 @@ public sealed class RobotController : IDisposable
     public Task ScanYawTurnersHomeAtFrontAsync(CancellationToken cancellationToken) =>
         _yawHomeKeepFace.ExecuteAtFrontAsync(cancellationToken);
 
+    public Task ScanYawTurnersHomeKeepRlHoldAsync(CancellationToken cancellationToken) =>
+        _yawHomeKeepFace.ExecuteKeepRlHoldAsync(cancellationToken);
+
     public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
         _pitchToTop.ExecuteAsync(cancellationToken);
 

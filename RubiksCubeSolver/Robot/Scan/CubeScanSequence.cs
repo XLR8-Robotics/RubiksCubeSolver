@@ -6,17 +6,18 @@ public static class CubeScanSequence
 {
     public static IReadOnlyList<IScanStep> Default { get; } =
     [
-        new DualHoldPhotoStep(CubeFace.F, "FRONT"),
-        new YawTurnDualHoldHomeStep(CubeFace.R, "RIGHT"),
-        new YawTurnDualHoldHomeStep(CubeFace.B, "BACK"),
-        new YawTurnDualHoldHomeStep(CubeFace.L, "LEFT"),
-        new ReturnToFrontForPitchStep(),
+        new TopBottomHoldPhotoStep(CubeFace.F, "FRONT", ScanStickerMask.TopBottomHold),
+        new YawTurnTopBottomHoldHomeStep(CubeFace.R, "RIGHT", ScanStickerMask.AllNine),
+        new YawTurnBackFillHomeStep(),
+        new YawTurnTopBottomHoldHomeStep(CubeFace.L, "LEFT", ScanStickerMask.AllNine),
+        new ReturnToFrontFillStep(),
         new PitchPhotoReturnStep(toTop: true, "first pitch"),
         new PitchPhotoReturnStep(toTop: false, "other way"),
         new FinishHugStep()
     ];
 
-    public static async Task RunAsync(IScanSession session, IReadOnlyList<IScanStep> steps, CancellationToken cancellationToken)
+    public static async Task RunAsync(
+        IScanSession session, IReadOnlyList<IScanStep> steps, CancellationToken cancellationToken)
     {
         foreach (var step in steps)
         {
@@ -26,63 +27,91 @@ public static class CubeScanSequence
     }
 }
 
-public sealed class DualHoldPhotoStep : IScanStep
+public sealed class TopBottomHoldPhotoStep : IScanStep
 {
     readonly CubeFace _face;
     readonly string _label;
+    readonly IReadOnlyList<int> _indices;
 
-    public DualHoldPhotoStep(CubeFace face, string label)
+    public TopBottomHoldPhotoStep(CubeFace face, string label, IReadOnlyList<int> indices)
     {
         _face = face;
         _label = label;
+        _indices = indices;
     }
 
-    public string Name => $"{_label} dual hold photo";
+    public string Name => $"{_label} TB hold photo";
 
     public async Task ExecuteAsync(IScanSession session, CancellationToken cancellationToken)
     {
-        session.Log($"{_label}: dual hold photo (TB hold + RL hold, merge)");
-        await session.CaptureDualHoldAsync(_face, _label, cancellationToken);
+        session.Log($"{_label}: TB hold photo, skip obstructed stickers");
+        await session.ScanExposeTopBottomHoldAsync(cancellationToken);
+        await session.CaptureMaskedAsync(_face, _label, _indices, cancellationToken);
         session.Log($"STATE after {_label} photo: CURRENT_FACE={session.CurrentCameraFace}");
     }
 }
 
-public sealed class YawTurnDualHoldHomeStep : IScanStep
+public sealed class YawTurnTopBottomHoldHomeStep : IScanStep
 {
     readonly CubeFace _face;
     readonly string _label;
+    readonly IReadOnlyList<int> _indices;
 
-    public YawTurnDualHoldHomeStep(CubeFace face, string label)
+    public YawTurnTopBottomHoldHomeStep(CubeFace face, string label, IReadOnlyList<int> indices)
     {
         _face = face;
         _label = label;
+        _indices = indices;
     }
 
-    public string Name => $"{_label} turn, dual hold, yaw home";
+    public string Name => $"{_label} turn, TB hold photo, yaw home";
 
     public async Task ExecuteAsync(IScanSession session, CancellationToken cancellationToken)
     {
         session.Log($"{_label}: TURN_R_90");
         await session.ScanTurnRight90Async(cancellationToken);
-        session.Log($"{_label}: dual hold photo (TB hold + RL hold, merge)");
-        await session.CaptureDualHoldAsync(_face, _label, cancellationToken);
+        session.Log($"{_label}: TB hold photo");
+        await session.ScanExposeTopBottomHoldAsync(cancellationToken);
+        await session.CaptureMaskedAsync(_face, _label, _indices, cancellationToken);
         session.Log($"{_label}: retract TB, unwind yaw turners, re-grip");
         await session.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
         session.Log($"STATE after {_label} photo: CURRENT_FACE={session.CurrentCameraFace}");
     }
 }
 
-public sealed class ReturnToFrontForPitchStep : IScanStep
+public sealed class YawTurnBackFillHomeStep : IScanStep
 {
-    public string Name => "Return to FRONT for pitch";
+    public string Name => "BACK turn, TB hold, RL fill 2 and 8, yaw home";
 
     public async Task ExecuteAsync(IScanSession session, CancellationToken cancellationToken)
     {
-        session.Log("RETURN: TURN_R_90 to FRONT (no photo — pitch phase)");
+        session.Log("BACK: TURN_R_90");
         await session.ScanTurnRight90Async(cancellationToken);
-        session.Log("RETURN: retract TB, unwind yaw turners at FRONT");
-        await session.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
-        session.Log($"STATE after back at FRONT for pitch: CURRENT_FACE={session.CurrentCameraFace}");
+        session.Log("BACK: TB hold photo, skip 2 and 8");
+        await session.ScanExposeTopBottomHoldAsync(cancellationToken);
+        await session.CaptureMaskedAsync(CubeFace.B, "BACK", ScanStickerMask.TopBottomHold, cancellationToken);
+        session.Log("BACK: RL hold while TB retract — write 2 and 8");
+        await session.ScanExposeLeftRightHoldAsync(cancellationToken);
+        await session.CaptureMaskedAsync(CubeFace.B, "BACK", ScanStickerMask.LeftRightHold, cancellationToken);
+        session.Log("BACK: unwind yaw turners, re-grip TB");
+        await session.ScanYawTurnersHomeKeepFaceAsync(cancellationToken);
+        session.Log($"STATE after BACK photos: CURRENT_FACE={session.CurrentCameraFace}");
+    }
+}
+
+public sealed class ReturnToFrontFillStep : IScanStep
+{
+    public string Name => "Return to FRONT, keep RL hold, fill 2 and 8";
+
+    public async Task ExecuteAsync(IScanSession session, CancellationToken cancellationToken)
+    {
+        session.Log("RETURN: TURN_R_90 to FRONT");
+        await session.ScanTurnRight90Async(cancellationToken);
+        session.Log("RETURN: unwind yaw, keep RL hold, TB clear");
+        await session.ScanYawTurnersHomeKeepRlHoldAsync(cancellationToken);
+        session.Log("FRONT: RL hold photo — write 2 and 8");
+        await session.CaptureMaskedAsync(CubeFace.F, "FRONT", ScanStickerMask.LeftRightHold, cancellationToken);
+        session.Log($"STATE after FRONT 2/8: CURRENT_FACE={session.CurrentCameraFace}");
     }
 }
 

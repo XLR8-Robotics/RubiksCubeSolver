@@ -1027,10 +1027,10 @@ public partial class MainViewModel : ObservableObject
 
     async Task<List<Scalar[]>> ScanAllFacesAsync(CancellationToken cancellationToken)
     {
-        var map = new Dictionary<CubeFace, Scalar[]>();
+        var map = new Dictionary<CubeFace, ScanFaceBuffer>();
         var frameCount = Math.Clamp(Settings.ScanFramesPerFace, 1, 12);
         var frameGapMs = Math.Clamp(Settings.ScanFrameGapMs, 40, 1000);
-        AppendLog($"Scan: F → R → B → L, then pitch U/D both ways ({frameCount} frames/hold).");
+        AppendLog($"Scan: F → R → B → L opportunistic fill, then pitch U/D ({frameCount} frames/hold).");
 
         async Task<Scalar[]> GrabFaceAsync(int settleMs)
         {
@@ -1053,46 +1053,26 @@ public partial class MainViewModel : ObservableObject
             return FaceScanner.AverageSamples(frames);
         }
 
-        async Task CaptureFaceAsync(CubeFace face, string label, CancellationToken ct)
+        async Task CaptureMaskedAsync(
+            CubeFace face, string label, IReadOnlyList<int> indices, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            if (map.ContainsKey(face))
+            if (!map.TryGetValue(face, out var buffer))
             {
-                throw new InvalidOperationException($"Face {face} was already scanned — sequence error at {label}.");
+                buffer = new ScanFaceBuffer();
+                map[face] = buffer;
             }
 
+            var stickerNumbers = string.Join(',', indices.Select(index => index + 1));
             StatusText = $"Photographing {face}";
-            AppendLog($"PHOTO_{label}: CURRENT_FACE={_robot!.CurrentCameraFace}, taking {frameCount} frames.");
+            AppendLog(
+                $"PHOTO_{label}: CURRENT_FACE={_robot!.CurrentCameraFace}, stickers [{stickerNumbers}], {frameCount} frames.");
             var samples = await GrabFaceAsync(Settings.VideoDurationMs);
-            map[face] = samples;
-            ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray());
-            AppendLog($"Stored {face} ({label}).");
-        }
+            buffer.Write(samples, indices);
+            ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray(), indices);
+            AppendLog($"Stored {face} stickers [{stickerNumbers}] ({label}).");
 
-        async Task CaptureFaceDualHoldAsync(CubeFace face, string label, CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (map.ContainsKey(face))
-            {
-                throw new InvalidOperationException($"Face {face} was already scanned — sequence error at {label}.");
-            }
-
-            StatusText = $"Photographing {face} (TB hold)";
-            AppendLog($"PHOTO_{label}: TB hold, CURRENT_FACE={_robot!.CurrentCameraFace}, {frameCount} frames.");
-            await _robot.ScanExposeTopBottomHoldForPhotoAsync(ct);
-            var topBottomHold = await GrabFaceAsync(Settings.VideoDurationMs);
-
-            StatusText = $"Photographing {face} (RL hold)";
-            AppendLog($"PHOTO_{label}: RL hold, {frameCount} frames.");
-            await _robot.ScanExposeLeftRightHoldForPhotoAsync(ct);
-            var leftRightHold = await GrabFaceAsync(Settings.VideoDurationMs);
-
-            var samples = FaceScanner.MergeDualHold(topBottomHold, leftRightHold);
-            map[face] = samples;
-            ApplyFace(face, samples.Select(ColorClassifier.Guess).ToArray());
-            AppendLog($"Stored {face} ({label}) — merged TB+RL holds.");
-
-            if (face == CubeFace.F)
+            if (face == CubeFace.F && indices.Contains(4))
             {
                 var frontCenter = ColorClassifier.Guess(samples[4]);
                 if (frontCenter == StickerColor.White)
@@ -1105,6 +1085,9 @@ public partial class MainViewModel : ObservableObject
                 }
             }
         }
+
+        async Task CaptureFaceAsync(CubeFace face, string label, CancellationToken ct) =>
+            await CaptureMaskedAsync(face, label, ScanStickerMask.AllNine, ct);
 
         async Task CapturePitchedFaceAsync(CubeFace face, string label, CancellationToken ct)
         {
@@ -1130,7 +1113,7 @@ public partial class MainViewModel : ObservableObject
         var session = new CubeScanSession(
             this,
             _robot,
-            CaptureFaceDualHoldAsync,
+            CaptureMaskedAsync,
             CapturePitchedFaceAsync);
         await CubeScanSequence.RunAsync(session, CubeScanSequence.Default, cancellationToken);
 
@@ -1139,20 +1122,23 @@ public partial class MainViewModel : ObservableObject
             AppendLog($"WARNING: scan ended with {_robot.CurrentCameraFace} at camera (expected FRONT).");
         }
 
-        if (!map.ContainsKey(CubeFace.U) || !map.ContainsKey(CubeFace.D))
+        foreach (var face in new[] { CubeFace.U, CubeFace.R, CubeFace.F, CubeFace.D, CubeFace.L, CubeFace.B })
         {
-            throw new InvalidOperationException(
-                "Scan missed TOP or BOTTOM — both pitch directions must photograph a face.");
+            if (!map.TryGetValue(face, out var buffer) || !buffer.IsComplete)
+            {
+                throw new InvalidOperationException(
+                    $"Scan missed stickers on {face} — every face must be fully photographed.");
+            }
         }
 
         return
         [
-            map[CubeFace.U],
-            map[CubeFace.R],
-            map[CubeFace.F],
-            map[CubeFace.D],
-            map[CubeFace.L],
-            map[CubeFace.B]
+            map[CubeFace.U].Samples,
+            map[CubeFace.R].Samples,
+            map[CubeFace.F].Samples,
+            map[CubeFace.D].Samples,
+            map[CubeFace.L].Samples,
+            map[CubeFace.B].Samples
         ];
     }
 
@@ -1160,18 +1146,18 @@ public partial class MainViewModel : ObservableObject
     {
         readonly MainViewModel _viewModel;
         readonly RobotController _robot;
-        readonly Func<CubeFace, string, CancellationToken, Task> _captureDualHold;
+        readonly Func<CubeFace, string, IReadOnlyList<int>, CancellationToken, Task> _captureMasked;
         readonly Func<CubeFace, string, CancellationToken, Task> _capturePitched;
 
         public CubeScanSession(
             MainViewModel viewModel,
             RobotController robot,
-            Func<CubeFace, string, CancellationToken, Task> captureDualHold,
+            Func<CubeFace, string, IReadOnlyList<int>, CancellationToken, Task> captureMasked,
             Func<CubeFace, string, CancellationToken, Task> capturePitched)
         {
             _viewModel = viewModel;
             _robot = robot;
-            _captureDualHold = captureDualHold;
+            _captureMasked = captureMasked;
             _capturePitched = capturePitched;
         }
 
@@ -1179,11 +1165,18 @@ public partial class MainViewModel : ObservableObject
 
         public void Log(string message) => _viewModel.AppendLog(message);
 
-        public Task CaptureDualHoldAsync(CubeFace face, string label, CancellationToken cancellationToken) =>
-            _captureDualHold(face, label, cancellationToken);
+        public Task CaptureMaskedAsync(
+            CubeFace face, string label, IReadOnlyList<int> stickerIndices, CancellationToken cancellationToken) =>
+            _captureMasked(face, label, stickerIndices, cancellationToken);
 
         public Task CapturePitchedFaceAsync(CubeFace face, string label, CancellationToken cancellationToken) =>
             _capturePitched(face, label, cancellationToken);
+
+        public Task ScanExposeTopBottomHoldAsync(CancellationToken cancellationToken) =>
+            _robot.ScanExposeTopBottomHoldForPhotoAsync(cancellationToken);
+
+        public Task ScanExposeLeftRightHoldAsync(CancellationToken cancellationToken) =>
+            _robot.ScanExposeLeftRightHoldForPhotoAsync(cancellationToken);
 
         public Task ScanTurnRight90Async(CancellationToken cancellationToken) =>
             _robot.ScanTurnRight90CountAsync(cancellationToken, 1);
@@ -1193,6 +1186,9 @@ public partial class MainViewModel : ObservableObject
 
         public Task ScanYawTurnersHomeAtFrontAsync(CancellationToken cancellationToken) =>
             _robot.ScanYawTurnersHomeAtFrontAsync(cancellationToken);
+
+        public Task ScanYawTurnersHomeKeepRlHoldAsync(CancellationToken cancellationToken) =>
+            _robot.ScanYawTurnersHomeKeepRlHoldAsync(cancellationToken);
 
         public Task ScanPitchToTopAsync(CancellationToken cancellationToken) =>
             _robot.ScanPitchToTopAsync(cancellationToken);
@@ -1228,7 +1224,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    void ApplyFace(CubeFace face, StickerColor[] nine)
+    void ApplyFace(CubeFace face, StickerColor[] nine, IReadOnlyList<int>? indices = null)
     {
         var start = face switch
         {
@@ -1240,9 +1236,10 @@ public partial class MainViewModel : ObservableObject
             _ => 45
         };
         var copy = nine.ToArray();
+        var slots = indices ?? ScanStickerMask.AllNine;
         void Write()
         {
-            for (int i = 0; i < 9; i++)
+            foreach (var i in slots)
             {
                 Stickers[start + i].Color = copy[i];
             }
