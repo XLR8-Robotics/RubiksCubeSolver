@@ -19,7 +19,8 @@ public sealed class GripperCalibration
 
     /// <summary>
     /// 90° face-turn target. Prime is the same pulse travel as Turn end, the other way.
-    /// Never 0 (Maestro servo off). Floor is 256, the Maestro absolute min if the channel allows it.
+    /// Never 0 (Maestro servo off). U' is clamped to 328 µs so the servo stays powered
+    /// and still reaches a full quarter turn on this robot.
     /// </summary>
     public double QuarterTurnTargetUs(bool prime)
     {
@@ -28,7 +29,7 @@ public sealed class GripperCalibration
             return EndUs;
         }
 
-        return MirroredEndUs();
+        return Math.Clamp(MirroredEndUs(), 328, 2496);
     }
 
     /// <summary>
