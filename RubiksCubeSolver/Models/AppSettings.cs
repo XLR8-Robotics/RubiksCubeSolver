@@ -14,14 +14,35 @@ public sealed class GripperCalibration
     public double MirroredEndUs()
     {
         var target = StartUs - (EndUs - StartUs);
-        return Math.Clamp(target, 256, 2496);
+        return Math.Clamp(target, 496, 2496);
     }
 
     /// <summary>
-    /// 90° face-turn target. Prime uses the same pulse travel as Turn end, mirrored around Start.
-    /// Do not use OppositeEndUs here — that value is for dual tumble and is often 496/2496.
+    /// 90° face-turn target. U uses Turn end. U' uses Other way when that pulse is a real
+    /// opposite-side 90°. Never 0 — Maestro treats 0 as servo off and the gripper dumps.
     /// </summary>
-    public double QuarterTurnTargetUs(bool prime) => prime ? MirroredEndUs() : EndUs;
+    public double QuarterTurnTargetUs(bool prime)
+    {
+        if (!prime)
+        {
+            return EndUs;
+        }
+
+        var turnSign = Math.Sign(EndUs - StartUs);
+        if (turnSign == 0)
+        {
+            turnSign = 1;
+        }
+
+        var otherSign = Math.Sign(OppositeEndUs - StartUs);
+        var otherIsOpposite90 = otherSign != 0
+            && otherSign != turnSign
+            && OppositeEndUs >= 496
+            && OppositeEndUs <= 2400;
+
+        var target = otherIsOpposite90 ? OppositeEndUs : MirroredEndUs();
+        return Math.Clamp(target, 496, 2496);
+    }
 
     /// <summary>
     /// Opposite pulse for a dual tumble. If OppositeEndUs was saved as servo max/min (2496/256)

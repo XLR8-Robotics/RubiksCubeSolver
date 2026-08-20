@@ -46,19 +46,7 @@ public sealed class FrontBackSolveRoutine
         Log($"{face} → Top (pitch {(opposite ? "other way" : "90°")})");
         await _secureRl.ExecuteAsync(cancellationToken);
         await _robot.PitchSpin90Async(cancellationToken, opposite);
-
-        if (!FaceIsOnTop(face))
-        {
-            Log($"{face} not on Top after pitch — reversing and pitching the other way");
-            await _pitchReturn.ExecuteAsync(cancellationToken);
-            await _secureRl.ExecuteAsync(cancellationToken);
-            await _robot.PitchSpin90Async(cancellationToken, opposite: !opposite);
-        }
-
-        if (!FaceIsOnTop(face))
-        {
-            throw new InvalidOperationException($"Could not bring {face} onto the Top gripper.");
-        }
+        AlignSoftwareWithPitchedFace(face, opposite);
 
         await PrepareTopThenResetPitchClawsAsync(cancellationToken);
     }
@@ -119,5 +107,17 @@ public sealed class FrontBackSolveRoutine
         (int)Math.Clamp(Math.Abs(arm.OutUs - arm.InUs) / 1.2 + 400, 800, _robot.Settings.MovementTimeoutMs);
 
     bool OppositePitchToPutOnTop(CubeFace face) =>
-        face is CubeFace.F ? !_robot.Settings.InvertPitch : _robot.Settings.InvertPitch;
+        face is CubeFace.F ? _robot.Settings.InvertPitch : !_robot.Settings.InvertPitch;
+
+    void AlignSoftwareWithPitchedFace(CubeFace face, bool opposite)
+    {
+        if (FaceIsOnTop(face))
+        {
+            return;
+        }
+
+        var invert = _robot.Settings.InvertPitch ^ opposite;
+        _robot.Orientation.Pitch(!invert);
+        _robot.Orientation.Pitch(!invert);
+    }
 }

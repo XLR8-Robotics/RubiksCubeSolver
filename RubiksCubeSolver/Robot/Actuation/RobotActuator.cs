@@ -450,6 +450,12 @@ public sealed class RobotActuator : IRobotActuator
     public void SetGripperQuarterTurn(GripperCalibration gripper, bool prime)
     {
         var target = gripper.QuarterTurnTargetUs(prime);
+        if (target < 496)
+        {
+            OnCommand?.Invoke($"Ch{gripper.Port} refused {target:F0} µs (0 = servo off)");
+            target = 496;
+        }
+
         OnCommand?.Invoke(
             $"Ch{gripper.Port} {gripper.StartUs:F0}→{target:F0} ({Math.Abs(target - gripper.StartUs):F0} µs)");
         SetGripperTarget(gripper, target);
