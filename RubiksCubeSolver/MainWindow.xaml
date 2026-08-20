@@ -116,27 +116,50 @@
             </TabItem>
 
             <TabItem Header="Solve test">
-                <Border Style="{StaticResource Panel}" Margin="0,10,0,0">
-                    <StackPanel>
-                        <TextBlock Text="SOLVE COMMANDS" FontWeight="Bold" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,4,0,12"
-                                   Text="Run one command on the robot. U D L R turn the gripped faces. F and B pitch, turn, then reverse that pitch so the cube faces the camera again."/>
-                        <UniformGrid Rows="2" Columns="6" HorizontalAlignment="Left" Width="720">
-                            <Button Content="U" Command="{Binding TestSolveMoveCommand}" CommandParameter="U" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
-                            <Button Content="U'" Command="{Binding TestSolveMoveCommand}" CommandParameter="U'" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
-                            <Button Content="D" Command="{Binding TestSolveMoveCommand}" CommandParameter="D" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
-                            <Button Content="D'" Command="{Binding TestSolveMoveCommand}" CommandParameter="D'" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
-                            <Button Content="L" Command="{Binding TestSolveMoveCommand}" CommandParameter="L" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
-                            <Button Content="L'" Command="{Binding TestSolveMoveCommand}" CommandParameter="L'" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
-                            <Button Content="R" Command="{Binding TestSolveMoveCommand}" CommandParameter="R" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
-                            <Button Content="R'" Command="{Binding TestSolveMoveCommand}" CommandParameter="R'" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
-                            <Button Content="F" Command="{Binding TestSolveMoveCommand}" CommandParameter="F" Margin="4" MinHeight="44" Background="{StaticResource OkBrush}" Foreground="#102016"/>
-                            <Button Content="F'" Command="{Binding TestSolveMoveCommand}" CommandParameter="F'" Margin="4" MinHeight="44" Background="{StaticResource OkBrush}" Foreground="#102016"/>
-                            <Button Content="B" Command="{Binding TestSolveMoveCommand}" CommandParameter="B" Margin="4" MinHeight="44" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"/>
-                            <Button Content="B'" Command="{Binding TestSolveMoveCommand}" CommandParameter="B'" Margin="4" MinHeight="44" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"/>
-                        </UniformGrid>
-                    </StackPanel>
-                </Border>
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.15*"/>
+                        <ColumnDefinition Width="0.95*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource Panel}" Margin="0,0,10,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="SOLVE COMMANDS" FontWeight="Bold" Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,4,0,12"
+                                       Text="Run one command on the robot. The digital cube on the right shows the expected result — compare it to the physical cube to see which turns are off. U D L R turn the gripped faces. F and B pitch, turn, then reverse that pitch so the cube faces the camera again."/>
+                            <UniformGrid DockPanel.Dock="Top" Rows="2" Columns="6" HorizontalAlignment="Left" Width="720">
+                                <Button Content="U" Command="{Binding TestSolveMoveCommand}" CommandParameter="U" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
+                                <Button Content="U'" Command="{Binding TestSolveMoveCommand}" CommandParameter="U'" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
+                                <Button Content="D" Command="{Binding TestSolveMoveCommand}" CommandParameter="D" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
+                                <Button Content="D'" Command="{Binding TestSolveMoveCommand}" CommandParameter="D'" Margin="4" MinHeight="44" Background="{StaticResource AccentBrush}"/>
+                                <Button Content="L" Command="{Binding TestSolveMoveCommand}" CommandParameter="L" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
+                                <Button Content="L'" Command="{Binding TestSolveMoveCommand}" CommandParameter="L'" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
+                                <Button Content="R" Command="{Binding TestSolveMoveCommand}" CommandParameter="R" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
+                                <Button Content="R'" Command="{Binding TestSolveMoveCommand}" CommandParameter="R'" Margin="4" MinHeight="44" Background="{StaticResource BlueBrush}"/>
+                                <Button Content="F" Command="{Binding TestSolveMoveCommand}" CommandParameter="F" Margin="4" MinHeight="44" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                                <Button Content="F'" Command="{Binding TestSolveMoveCommand}" CommandParameter="F'" Margin="4" MinHeight="44" Background="{StaticResource OkBrush}" Foreground="#102016"/>
+                                <Button Content="B" Command="{Binding TestSolveMoveCommand}" CommandParameter="B" Margin="4" MinHeight="44" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"/>
+                                <Button Content="B'" Command="{Binding TestSolveMoveCommand}" CommandParameter="B'" Margin="4" MinHeight="44" Background="{StaticResource ScrambleBrush}" Foreground="#08201C"/>
+                            </UniformGrid>
+                            <WrapPanel DockPanel.Dock="Top" Margin="4,12,0,0">
+                                <Button Content="Reset digital cube" Command="{Binding ResetDigitalCubeCommand}" Background="{StaticResource PanelAltBrush}" Margin="0"
+                                        ToolTip="Put the digital cube back to solved (white front, red top) so you can test one move at a time."/>
+                            </WrapPanel>
+                            <TextBlock DockPanel.Dock="Bottom" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,12,0,0"
+                                       Text="If the physical cube does not match after a press, that command is the one to fix. Reset the digital cube (and physically restore the cube) before the next isolated test."/>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource Panel}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <TextBlock Text="DIGITAL CUBE" FontWeight="Bold" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="Expected software move. White/logo face toward the camera." Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            </StackPanel>
+                            <Border Background="#0C0E12" CornerRadius="8" ClipToBounds="True">
+                                <controls:Cube3DView x:Name="TestCubeView" Stickers="{Binding Stickers}"/>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+                </Grid>
             </TabItem>
 
             <TabItem Header="Scan grid">

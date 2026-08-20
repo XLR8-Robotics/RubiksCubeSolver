@@ -17,7 +17,9 @@ public partial class MainWindow : Window
         vm.AnimateDigitalMove = async (move, commit, ct) =>
         {
             await Dispatcher.InvokeAsync(() => { });
-            await CubeView.AnimateMoveAsync(move, () => Dispatcher.Invoke(commit), ct);
+            await Task.WhenAll(
+                CubeView.AnimateMoveAsync(move, () => Dispatcher.Invoke(commit), ct),
+                TestCubeView.AnimateMoveAsync(move, null, ct));
         };
         vm.PropertyChanged += (_, e) =>
         {

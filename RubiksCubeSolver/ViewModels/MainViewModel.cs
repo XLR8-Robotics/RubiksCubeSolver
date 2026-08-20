@@ -637,6 +637,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public void ResetDigitalCube()
+    {
+        _digital.ResetSolved();
+        ApplyStickers(_digital.Colors);
+        SolutionText = "";
+        AppendLog("Digital cube reset to solved (white front, red top).");
+    }
+
+    [RelayCommand]
     public void CycleSticker(StickerCell? cell)
     {
         if (cell is null)

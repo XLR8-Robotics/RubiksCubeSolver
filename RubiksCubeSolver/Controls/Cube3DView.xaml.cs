@@ -100,6 +100,12 @@ public partial class Cube3DView : UserControl
 
         if (_sliceGroup is null || _staticGroup is null)
         {
+            BuildCube();
+            UpdateCamera();
+        }
+
+        if (_sliceGroup is null || _staticGroup is null)
+        {
             commitColors?.Invoke();
             return;
         }
