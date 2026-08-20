@@ -449,7 +449,10 @@ public sealed class RobotActuator : IRobotActuator
 
     public void SetGripperQuarterTurn(GripperCalibration gripper, bool prime)
     {
-        SetGripperTarget(gripper, prime ? gripper.EffectiveOppositeUs() : gripper.EndUs);
+        var target = gripper.QuarterTurnTargetUs(prime);
+        OnCommand?.Invoke(
+            $"Ch{gripper.Port} {gripper.StartUs:F0}→{target:F0} ({Math.Abs(target - gripper.StartUs):F0} µs)");
+        SetGripperTarget(gripper, target);
     }
 
     public void AllArmsOut()

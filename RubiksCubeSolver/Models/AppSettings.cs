@@ -18,6 +18,12 @@ public sealed class GripperCalibration
     }
 
     /// <summary>
+    /// 90° face-turn target. Prime uses the same pulse travel as Turn end, mirrored around Start.
+    /// Do not use OppositeEndUs here — that value is for dual tumble and is often 496/2496.
+    /// </summary>
+    public double QuarterTurnTargetUs(bool prime) => prime ? MirroredEndUs() : EndUs;
+
+    /// <summary>
     /// Opposite pulse for a dual tumble. If OppositeEndUs was saved as servo max/min (2496/256)
     /// on the wrong side of Start, use the mirrored Turn distance instead.
     /// </summary>
