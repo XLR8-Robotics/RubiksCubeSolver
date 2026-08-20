@@ -11,6 +11,7 @@ public sealed class FrontBackSolveRoutine
     readonly HugCommand _hug;
     readonly ScanSecureRlThenTbClearCommand _secureRl;
     readonly ScanPitchReturnToFrontCommand _pitchReturn;
+    bool _ontoTopOpposite;
 
     public FrontBackSolveRoutine(
         IRobotActuator robot,
@@ -43,6 +44,7 @@ public sealed class FrontBackSolveRoutine
         }
 
         var opposite = OppositePitchToPutOnTop(face);
+        _ontoTopOpposite = opposite;
         Log($"{face} → Top (pitch {(opposite ? "other way" : "90°")})");
         await _secureRl.ExecuteAsync(cancellationToken);
         await _robot.PitchSpin90Async(cancellationToken, opposite);
@@ -66,13 +68,9 @@ public sealed class FrontBackSolveRoutine
             return;
         }
 
-        var undoOpposite = FaceIsOnTop(CubeFace.F)
-            ? _robot.Settings.InvertPitch
-            : !_robot.Settings.InvertPitch;
-
         Log("Pitch Front back to camera");
         await _secureRl.ExecuteAsync(cancellationToken);
-        await _robot.PitchSpin90Async(cancellationToken, undoOpposite);
+        await _robot.PitchSpin90Async(cancellationToken, opposite: !_ontoTopOpposite);
 
         Log("Left/Right pull back and rewind after restore pitch");
         await PrepareTopThenResetPitchClawsAsync(cancellationToken);
