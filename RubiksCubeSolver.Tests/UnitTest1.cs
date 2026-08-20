@@ -86,7 +86,10 @@ public class AppSettingsTests
             var root = JsonNode.Parse(File.ReadAllText(tempPath))!.AsObject();
             Assert.Equal(12, root["RedOrangeHueSplit"]!.GetValue<int>());
             Assert.Equal(12, root["ColorHueSplits"]!["RedOrange"]!.GetValue<int>());
-            Assert.Equal(18, root["ColorHueSplits"]!["OrangeYellow"]!.GetValue<int>());
+            Assert.Equal(12, root["ColorHueSplits"]!["OrangeHueFrom"]!.GetValue<int>());
+            Assert.Equal(17, root["ColorHueSplits"]!["OrangeHueTo"]!.GetValue<int>());
+            Assert.Equal(171, root["ColorHueSplits"]!["RedHueFrom"]!.GetValue<int>());
+            Assert.Equal(11, root["ColorHueSplits"]!["RedHueTo"]!.GetValue<int>());
         }
         finally
         {

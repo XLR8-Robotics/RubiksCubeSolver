@@ -212,27 +212,7 @@ public static class ColorClassifier
             return StickerColor.Unknown;
         }
 
-        if (hsv.H < split.RedOrange || hsv.H > split.BlueRed)
-        {
-            return StickerColor.Red;
-        }
-
-        if (hsv.H < split.OrangeYellow)
-        {
-            return StickerColor.Orange;
-        }
-
-        if (hsv.H < split.YellowGreen)
-        {
-            return StickerColor.Yellow;
-        }
-
-        if (hsv.H < split.GreenBlue)
-        {
-            return StickerColor.Green;
-        }
-
-        return StickerColor.Blue;
+        return split.MatchHue(hsv.H);
     }
 
     static StickerColor GuessFromLab(Vec3d lab, HashSet<StickerColor> used)

@@ -313,9 +313,9 @@ public sealed class AppSettings
     public ColorHueSplits EnsureColorHueSplits()
     {
         ColorHueSplits ??= new ColorHueSplits();
-        if (ColorHueSplits.RedOrange == ColorHueSplits.DefaultRedOrange
-            && RedOrangeHueSplit is >= 2 and <= 40
-            && RedOrangeHueSplit != ColorHueSplits.DefaultRedOrange)
+        if (!ColorHueSplits.HasExplicitRanges()
+            && ColorHueSplits.RedOrange == 0
+            && RedOrangeHueSplit is >= 2 and <= 40)
         {
             ColorHueSplits.RedOrange = RedOrangeHueSplit;
         }

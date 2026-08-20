@@ -84,33 +84,72 @@ public class ColorClassifierTests
     }
 
     [Fact]
-    public void Normalized_ZeroValues_BecomeDefaults()
+    public void Normalized_ZeroValues_BecomeDefaultHueRanges()
     {
         var splits = new ColorHueSplits().Normalized();
 
+        Assert.Equal(171, splits.RedHueFrom);
+        Assert.Equal(7, splits.RedHueTo);
+        Assert.Equal(8, splits.OrangeHueFrom);
+        Assert.Equal(17, splits.OrangeHueTo);
+        Assert.Equal(18, splits.YellowHueFrom);
+        Assert.Equal(37, splits.YellowHueTo);
+        Assert.Equal(38, splits.GreenHueFrom);
+        Assert.Equal(84, splits.GreenHueTo);
+        Assert.Equal(85, splits.BlueHueFrom);
+        Assert.Equal(170, splits.BlueHueTo);
         Assert.Equal(8, splits.RedOrange);
-        Assert.Equal(18, splits.OrangeYellow);
-        Assert.Equal(38, splits.YellowGreen);
-        Assert.Equal(85, splits.GreenBlue);
-        Assert.Equal(170, splits.BlueRed);
         Assert.Equal(50, splits.WhiteSaturation);
     }
 
     [Fact]
-    public void Normalized_KeepsBoundariesStrictlyIncreasing()
+    public void Normalized_LegacySplitPoints_FillFromToRanges()
     {
         var splits = new ColorHueSplits
         {
-            RedOrange = 40,
-            OrangeYellow = 30,
-            YellowGreen = 20,
-            GreenBlue = 10,
-            BlueRed = 5
+            RedOrange = 12,
+            OrangeYellow = 18,
+            YellowGreen = 38,
+            GreenBlue = 85,
+            BlueRed = 170
         }.Normalized();
 
-        Assert.True(splits.RedOrange < splits.OrangeYellow);
-        Assert.True(splits.OrangeYellow < splits.YellowGreen);
-        Assert.True(splits.YellowGreen < splits.GreenBlue);
-        Assert.True(splits.GreenBlue < splits.BlueRed);
+        Assert.Equal(171, splits.RedHueFrom);
+        Assert.Equal(11, splits.RedHueTo);
+        Assert.Equal(12, splits.OrangeHueFrom);
+        Assert.Equal(17, splits.OrangeHueTo);
+    }
+
+    [Fact]
+    public void MatchHue_WrapRedAndLowOrange_Classifies176AsRedAnd7AsOrange()
+    {
+        var splits = new ColorHueSplits
+        {
+            RedHueFrom = 170,
+            RedHueTo = 4,
+            OrangeHueFrom = 5,
+            OrangeHueTo = 17,
+            YellowHueFrom = 18,
+            YellowHueTo = 37,
+            GreenHueFrom = 38,
+            GreenHueTo = 84,
+            BlueHueFrom = 85,
+            BlueHueTo = 169
+        }.Normalized();
+
+        Assert.Equal(StickerColor.Red, splits.MatchHue(176));
+        Assert.Equal(StickerColor.Red, splits.MatchHue(0));
+        Assert.Equal(StickerColor.Orange, splits.MatchHue(7));
+        Assert.Equal(StickerColor.Orange, splits.MatchHue(5));
+    }
+
+    [Fact]
+    public void ContainsHue_FromGreaterThanTo_WrapsPast179()
+    {
+        Assert.True(ColorHueSplits.ContainsHue(176, 170, 4));
+        Assert.True(ColorHueSplits.ContainsHue(0, 170, 4));
+        Assert.True(ColorHueSplits.ContainsHue(4, 170, 4));
+        Assert.False(ColorHueSplits.ContainsHue(5, 170, 4));
+        Assert.False(ColorHueSplits.ContainsHue(90, 170, 4));
     }
 }

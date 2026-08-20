@@ -277,58 +277,75 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public int RedOrangeHueSplit
+    public int RedHueFrom
     {
-        get => HueSplits.RedOrange;
-        set => SetHueSplit(nameof(RedOrangeHueSplit), splits => splits.RedOrange = value);
+        get => HueSplits.RedHueFrom;
+        set => SetHueRange(nameof(RedHueFrom), splits => splits.RedHueFrom = value);
     }
 
-    public int OrangeYellowHueSplit
+    public int RedHueTo
     {
-        get => HueSplits.OrangeYellow;
-        set => SetHueSplit(nameof(OrangeYellowHueSplit), splits => splits.OrangeYellow = value);
+        get => HueSplits.RedHueTo;
+        set => SetHueRange(nameof(RedHueTo), splits => splits.RedHueTo = value);
     }
 
-    public int YellowGreenHueSplit
+    public int OrangeHueFrom
     {
-        get => HueSplits.YellowGreen;
-        set => SetHueSplit(nameof(YellowGreenHueSplit), splits => splits.YellowGreen = value);
+        get => HueSplits.OrangeHueFrom;
+        set => SetHueRange(nameof(OrangeHueFrom), splits => splits.OrangeHueFrom = value);
     }
 
-    public int GreenBlueHueSplit
+    public int OrangeHueTo
     {
-        get => HueSplits.GreenBlue;
-        set => SetHueSplit(nameof(GreenBlueHueSplit), splits => splits.GreenBlue = value);
+        get => HueSplits.OrangeHueTo;
+        set => SetHueRange(nameof(OrangeHueTo), splits => splits.OrangeHueTo = value);
     }
 
-    public int BlueRedHueSplit
+    public int YellowHueFrom
     {
-        get => HueSplits.BlueRed;
-        set => SetHueSplit(nameof(BlueRedHueSplit), splits => splits.BlueRed = value);
+        get => HueSplits.YellowHueFrom;
+        set => SetHueRange(nameof(YellowHueFrom), splits => splits.YellowHueFrom = value);
+    }
+
+    public int YellowHueTo
+    {
+        get => HueSplits.YellowHueTo;
+        set => SetHueRange(nameof(YellowHueTo), splits => splits.YellowHueTo = value);
+    }
+
+    public int GreenHueFrom
+    {
+        get => HueSplits.GreenHueFrom;
+        set => SetHueRange(nameof(GreenHueFrom), splits => splits.GreenHueFrom = value);
+    }
+
+    public int GreenHueTo
+    {
+        get => HueSplits.GreenHueTo;
+        set => SetHueRange(nameof(GreenHueTo), splits => splits.GreenHueTo = value);
+    }
+
+    public int BlueHueFrom
+    {
+        get => HueSplits.BlueHueFrom;
+        set => SetHueRange(nameof(BlueHueFrom), splits => splits.BlueHueFrom = value);
+    }
+
+    public int BlueHueTo
+    {
+        get => HueSplits.BlueHueTo;
+        set => SetHueRange(nameof(BlueHueTo), splits => splits.BlueHueTo = value);
     }
 
     public int WhiteSaturation
     {
         get => HueSplits.WhiteSaturation;
-        set => SetHueSplit(nameof(WhiteSaturation), splits => splits.WhiteSaturation = value);
+        set => SetHueRange(nameof(WhiteSaturation), splits => splits.WhiteSaturation = value);
     }
-
-    public int RedOrangeHueSplitMin => 2;
-    public int RedOrangeHueSplitMax => OrangeYellowHueSplit - 1;
-    public int OrangeYellowHueSplitMin => RedOrangeHueSplit + 1;
-    public int OrangeYellowHueSplitMax => YellowGreenHueSplit - 1;
-    public int YellowGreenHueSplitMin => OrangeYellowHueSplit + 1;
-    public int YellowGreenHueSplitMax => GreenBlueHueSplit - 1;
-    public int GreenBlueHueSplitMin => YellowGreenHueSplit + 1;
-    public int GreenBlueHueSplitMax => BlueRedHueSplit - 1;
-    public int BlueRedHueSplitMin => GreenBlueHueSplit + 1;
-    public int BlueRedHueSplitMax => 178;
-    public int WhiteSaturationMin => 20;
-    public int WhiteSaturationMax => 120;
 
     ColorHueSplits HueSplits => Settings.EnsureColorHueSplits();
 
-    void SetHueSplit(string propertyName, Action<ColorHueSplits> assign)
+    void SetHueRange(string propertyName, Action<ColorHueSplits> assign)
     {
         var current = HueSplits;
         assign(current);
@@ -336,22 +353,17 @@ public partial class MainViewModel : ObservableObject
         Settings.ColorHueSplits = next;
         Settings.RedOrangeHueSplit = next.RedOrange;
         OnPropertyChanged(propertyName);
-        OnPropertyChanged(nameof(RedOrangeHueSplit));
-        OnPropertyChanged(nameof(OrangeYellowHueSplit));
-        OnPropertyChanged(nameof(YellowGreenHueSplit));
-        OnPropertyChanged(nameof(GreenBlueHueSplit));
-        OnPropertyChanged(nameof(BlueRedHueSplit));
+        OnPropertyChanged(nameof(RedHueFrom));
+        OnPropertyChanged(nameof(RedHueTo));
+        OnPropertyChanged(nameof(OrangeHueFrom));
+        OnPropertyChanged(nameof(OrangeHueTo));
+        OnPropertyChanged(nameof(YellowHueFrom));
+        OnPropertyChanged(nameof(YellowHueTo));
+        OnPropertyChanged(nameof(GreenHueFrom));
+        OnPropertyChanged(nameof(GreenHueTo));
+        OnPropertyChanged(nameof(BlueHueFrom));
+        OnPropertyChanged(nameof(BlueHueTo));
         OnPropertyChanged(nameof(WhiteSaturation));
-        OnPropertyChanged(nameof(RedOrangeHueSplitMin));
-        OnPropertyChanged(nameof(RedOrangeHueSplitMax));
-        OnPropertyChanged(nameof(OrangeYellowHueSplitMin));
-        OnPropertyChanged(nameof(OrangeYellowHueSplitMax));
-        OnPropertyChanged(nameof(YellowGreenHueSplitMin));
-        OnPropertyChanged(nameof(YellowGreenHueSplitMax));
-        OnPropertyChanged(nameof(GreenBlueHueSplitMin));
-        OnPropertyChanged(nameof(GreenBlueHueSplitMax));
-        OnPropertyChanged(nameof(BlueRedHueSplitMin));
-        OnPropertyChanged(nameof(BlueRedHueSplitMax));
     }
 
     public bool FaceAutoDetect
@@ -678,9 +690,9 @@ public partial class MainViewModel : ObservableObject
         AppendLog(
             $"Scan grid saved with {ScanRectangles.Count} custom boxes " +
             $"(right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, " +
-            $"color splits R/O {RedOrangeHueSplit}, O/Y {OrangeYellowHueSplit}, " +
-            $"Y/G {YellowGreenHueSplit}, G/B {GreenBlueHueSplit}, B/R {BlueRedHueSplit}, " +
-            $"white {WhiteSaturation}).");
+            $"color H red {RedHueFrom}-{RedHueTo}, orange {OrangeHueFrom}-{OrangeHueTo}, " +
+            $"yellow {YellowHueFrom}-{YellowHueTo}, green {GreenHueFrom}-{GreenHueTo}, " +
+            $"blue {BlueHueFrom}-{BlueHueTo}, white S {WhiteSaturation}).");
     }
 
     public void ReplaceScanRectangles(IReadOnlyList<NormalizedScanRect> rectangles)

@@ -195,35 +195,42 @@ public class MainViewModelScanGridTests
     }
 
     [Fact]
-    public void RedOrangeHueSplit_ClampsOutOfRangeValuesToNeighborBand()
+    public void HueRanges_DefaultToOpenCvBands()
     {
         var viewModel = new MainViewModel(new AppSettings { RedOrangeHueSplit = 0 }, runStartupTasks: false);
 
-        Assert.Equal(8, viewModel.RedOrangeHueSplit);
-        Assert.Equal(18, viewModel.OrangeYellowHueSplit);
-        Assert.Equal(38, viewModel.YellowGreenHueSplit);
-        Assert.Equal(85, viewModel.GreenBlueHueSplit);
-        Assert.Equal(170, viewModel.BlueRedHueSplit);
+        Assert.Equal(171, viewModel.RedHueFrom);
+        Assert.Equal(7, viewModel.RedHueTo);
+        Assert.Equal(8, viewModel.OrangeHueFrom);
+        Assert.Equal(17, viewModel.OrangeHueTo);
+        Assert.Equal(18, viewModel.YellowHueFrom);
+        Assert.Equal(37, viewModel.YellowHueTo);
+        Assert.Equal(38, viewModel.GreenHueFrom);
+        Assert.Equal(84, viewModel.GreenHueTo);
+        Assert.Equal(85, viewModel.BlueHueFrom);
+        Assert.Equal(170, viewModel.BlueHueTo);
         Assert.Equal(50, viewModel.WhiteSaturation);
-
-        viewModel.RedOrangeHueSplit = 12;
-        Assert.Equal(12, viewModel.RedOrangeHueSplit);
-
-        viewModel.RedOrangeHueSplit = 99;
-        Assert.Equal(viewModel.OrangeYellowHueSplit - 1, viewModel.RedOrangeHueSplit);
     }
 
     [Fact]
-    public void OrangeYellowHueSplit_StaysBetweenNeighbors()
+    public void HueRanges_CanSetIndependentFromToAndClampTo0_179()
     {
         var viewModel = new MainViewModel(new AppSettings(), runStartupTasks: false);
 
-        viewModel.OrangeYellowHueSplit = 22;
-        Assert.Equal(22, viewModel.OrangeYellowHueSplit);
+        viewModel.RedHueFrom = 170;
+        viewModel.RedHueTo = 4;
+        viewModel.OrangeHueFrom = 5;
+        viewModel.OrangeHueTo = 17;
 
-        viewModel.YellowGreenHueSplit = 45;
-        Assert.Equal(45, viewModel.YellowGreenHueSplit);
-        Assert.True(viewModel.OrangeYellowHueSplit < viewModel.YellowGreenHueSplit);
-        Assert.True(viewModel.YellowGreenHueSplit < viewModel.GreenBlueHueSplit);
+        Assert.Equal(170, viewModel.RedHueFrom);
+        Assert.Equal(4, viewModel.RedHueTo);
+        Assert.Equal(5, viewModel.OrangeHueFrom);
+        Assert.Equal(17, viewModel.OrangeHueTo);
+
+        viewModel.OrangeHueFrom = 200;
+        Assert.Equal(179, viewModel.OrangeHueFrom);
+
+        viewModel.RedHueTo = -3;
+        Assert.Equal(0, viewModel.RedHueTo);
     }
 }
