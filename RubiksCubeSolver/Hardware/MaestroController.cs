@@ -155,6 +155,10 @@ public sealed class MaestroController : IDisposable
             return;
         }
 
+        // Give the Maestro time to start reporting motion. Polling immediately often
+        // sees idle, then the next command (gripper rewind) starts while the arm is still moving.
+        await Task.Delay(Math.Max(50, settleMs / 2), cancellationToken);
+
         var start = Environment.TickCount64;
         while (GetMovingState())
         {

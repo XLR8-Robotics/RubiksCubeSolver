@@ -49,8 +49,12 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
 
     async Task RetractHomeAndReturnAsync(GripperCalibration turner, ArmCalibration arm, CancellationToken cancellationToken)
     {
+        _robot.SetGripperQuarterTurn(turner, _prime);
+
         _robot.SetArm(arm, inside: false);
         await _robot.WaitAsync(cancellationToken);
+        await _robot.WaitUntilArmsNearAsync(arm, arm, retracted: true, cancellationToken);
+        await Task.Delay(Math.Max(800, _robot.Settings.SettleMs * 4), cancellationToken);
 
         _robot.NeutralGripper(turner);
         await _robot.WaitAsync(cancellationToken);
