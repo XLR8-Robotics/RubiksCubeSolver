@@ -183,16 +183,35 @@ public class MainViewModelScanGridTests
     }
 
     [Fact]
-    public void RedOrangeHueSplit_ClampsOutOfRangeValuesToDefaultBand()
+    public void RedOrangeHueSplit_ClampsOutOfRangeValuesToNeighborBand()
     {
         var viewModel = new MainViewModel(new AppSettings { RedOrangeHueSplit = 0 }, runStartupTasks: false);
 
         Assert.Equal(8, viewModel.RedOrangeHueSplit);
+        Assert.Equal(18, viewModel.OrangeYellowHueSplit);
+        Assert.Equal(38, viewModel.YellowGreenHueSplit);
+        Assert.Equal(85, viewModel.GreenBlueHueSplit);
+        Assert.Equal(170, viewModel.BlueRedHueSplit);
+        Assert.Equal(50, viewModel.WhiteSaturation);
 
         viewModel.RedOrangeHueSplit = 12;
         Assert.Equal(12, viewModel.RedOrangeHueSplit);
 
         viewModel.RedOrangeHueSplit = 99;
-        Assert.Equal(8, viewModel.RedOrangeHueSplit);
+        Assert.Equal(viewModel.OrangeYellowHueSplit - 1, viewModel.RedOrangeHueSplit);
+    }
+
+    [Fact]
+    public void OrangeYellowHueSplit_StaysBetweenNeighbors()
+    {
+        var viewModel = new MainViewModel(new AppSettings(), runStartupTasks: false);
+
+        viewModel.OrangeYellowHueSplit = 22;
+        Assert.Equal(22, viewModel.OrangeYellowHueSplit);
+
+        viewModel.YellowGreenHueSplit = 45;
+        Assert.Equal(45, viewModel.YellowGreenHueSplit);
+        Assert.True(viewModel.OrangeYellowHueSplit < viewModel.YellowGreenHueSplit);
+        Assert.True(viewModel.YellowGreenHueSplit < viewModel.GreenBlueHueSplit);
     }
 }

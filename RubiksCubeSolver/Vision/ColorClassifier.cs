@@ -5,22 +5,13 @@ namespace RubiksCubeSolver.Vision;
 
 public static class ColorClassifier
 {
-    public const int DefaultRedOrangeHueSplit = 8;
-    public const int MinRedOrangeHueSplit = 3;
-    public const int MaxRedOrangeHueSplit = 16;
-
-    public static int ClampRedOrangeHueSplit(int value) =>
-        value is >= MinRedOrangeHueSplit and <= MaxRedOrangeHueSplit
-            ? value
-            : DefaultRedOrangeHueSplit;
-
-    public static StickerColor[] ClassifyFace(Scalar[] samples, int redOrangeHueSplit = DefaultRedOrangeHueSplit)
+    public static StickerColor[] ClassifyFace(Scalar[] samples, ColorHueSplits? splits = null)
     {
-        return samples.Select(sample => Guess(sample, redOrangeHueSplit)).ToArray();
+        return samples.Select(sample => Guess(sample, splits)).ToArray();
     }
 
     public static StickerColor[] ClassifyCube(
-        IReadOnlyList<Scalar[]> faces, int redOrangeHueSplit = DefaultRedOrangeHueSplit)
+        IReadOnlyList<Scalar[]> faces, ColorHueSplits? splits = null)
     {
         var all = new List<(int Face, int Index, Vec3d Lab)>();
         for (int f = 0; f < 6; f++)
@@ -54,7 +45,7 @@ public static class ColorClassifier
         var palette = new StickerColor[6];
         for (int f = 0; f < 6; f++)
         {
-            palette[f] = Guess(faces[f][4], redOrangeHueSplit);
+            palette[f] = Guess(faces[f][4], splits);
         }
 
         palette = DisambiguatePalette(palette, centers);
@@ -192,7 +183,10 @@ public static class ColorClassifier
         return new Vec3d(p.Item0, p.Item1, p.Item2);
     }
 
-    public static StickerColor Guess(Scalar bgr, int redOrangeHueSplit = DefaultRedOrangeHueSplit)
+    public static StickerColor Guess(Scalar bgr, int redOrangeHueSplit) =>
+        Guess(bgr, ColorHueSplits.FromRedOrange(redOrangeHueSplit));
+
+    public static StickerColor Guess(Scalar bgr, ColorHueSplits? splits = null)
     {
         using var src = new Mat(1, 1, MatType.CV_8UC3, bgr);
         using var hsv = new Mat();
@@ -201,9 +195,9 @@ public static class ColorClassifier
         int h = p.Item0;
         int s = p.Item1;
         int v = p.Item2;
-        var split = ClampRedOrangeHueSplit(redOrangeHueSplit);
+        var split = (splits ?? new ColorHueSplits()).Normalized();
 
-        if (s < 50 && v > 140)
+        if (s < split.WhiteSaturation && v > 140)
         {
             return StickerColor.White;
         }
@@ -213,22 +207,22 @@ public static class ColorClassifier
             return StickerColor.Unknown;
         }
 
-        if (h < split || h > 170)
+        if (h < split.RedOrange || h > split.BlueRed)
         {
             return StickerColor.Red;
         }
 
-        if (h < 18)
+        if (h < split.OrangeYellow)
         {
             return StickerColor.Orange;
         }
 
-        if (h < 38)
+        if (h < split.YellowGreen)
         {
             return StickerColor.Yellow;
         }
 
-        if (h < 85)
+        if (h < split.GreenBlue)
         {
             return StickerColor.Green;
         }

@@ -234,18 +234,79 @@ public partial class MainViewModel : ObservableObject
 
     public int RedOrangeHueSplit
     {
-        get => ColorClassifier.ClampRedOrangeHueSplit(Settings.RedOrangeHueSplit);
-        set
-        {
-            var next = ColorClassifier.ClampRedOrangeHueSplit(value);
-            if (Settings.RedOrangeHueSplit == next)
-            {
-                return;
-            }
+        get => HueSplits.RedOrange;
+        set => SetHueSplit(nameof(RedOrangeHueSplit), splits => splits.RedOrange = value);
+    }
 
-            Settings.RedOrangeHueSplit = next;
-            OnPropertyChanged();
-        }
+    public int OrangeYellowHueSplit
+    {
+        get => HueSplits.OrangeYellow;
+        set => SetHueSplit(nameof(OrangeYellowHueSplit), splits => splits.OrangeYellow = value);
+    }
+
+    public int YellowGreenHueSplit
+    {
+        get => HueSplits.YellowGreen;
+        set => SetHueSplit(nameof(YellowGreenHueSplit), splits => splits.YellowGreen = value);
+    }
+
+    public int GreenBlueHueSplit
+    {
+        get => HueSplits.GreenBlue;
+        set => SetHueSplit(nameof(GreenBlueHueSplit), splits => splits.GreenBlue = value);
+    }
+
+    public int BlueRedHueSplit
+    {
+        get => HueSplits.BlueRed;
+        set => SetHueSplit(nameof(BlueRedHueSplit), splits => splits.BlueRed = value);
+    }
+
+    public int WhiteSaturation
+    {
+        get => HueSplits.WhiteSaturation;
+        set => SetHueSplit(nameof(WhiteSaturation), splits => splits.WhiteSaturation = value);
+    }
+
+    public int RedOrangeHueSplitMin => 2;
+    public int RedOrangeHueSplitMax => OrangeYellowHueSplit - 1;
+    public int OrangeYellowHueSplitMin => RedOrangeHueSplit + 1;
+    public int OrangeYellowHueSplitMax => YellowGreenHueSplit - 1;
+    public int YellowGreenHueSplitMin => OrangeYellowHueSplit + 1;
+    public int YellowGreenHueSplitMax => GreenBlueHueSplit - 1;
+    public int GreenBlueHueSplitMin => YellowGreenHueSplit + 1;
+    public int GreenBlueHueSplitMax => BlueRedHueSplit - 1;
+    public int BlueRedHueSplitMin => GreenBlueHueSplit + 1;
+    public int BlueRedHueSplitMax => 178;
+    public int WhiteSaturationMin => 20;
+    public int WhiteSaturationMax => 120;
+
+    ColorHueSplits HueSplits => Settings.EnsureColorHueSplits();
+
+    void SetHueSplit(string propertyName, Action<ColorHueSplits> assign)
+    {
+        var current = HueSplits;
+        assign(current);
+        var next = current.Normalized();
+        Settings.ColorHueSplits = next;
+        Settings.RedOrangeHueSplit = next.RedOrange;
+        OnPropertyChanged(propertyName);
+        OnPropertyChanged(nameof(RedOrangeHueSplit));
+        OnPropertyChanged(nameof(OrangeYellowHueSplit));
+        OnPropertyChanged(nameof(YellowGreenHueSplit));
+        OnPropertyChanged(nameof(GreenBlueHueSplit));
+        OnPropertyChanged(nameof(BlueRedHueSplit));
+        OnPropertyChanged(nameof(WhiteSaturation));
+        OnPropertyChanged(nameof(RedOrangeHueSplitMin));
+        OnPropertyChanged(nameof(RedOrangeHueSplitMax));
+        OnPropertyChanged(nameof(OrangeYellowHueSplitMin));
+        OnPropertyChanged(nameof(OrangeYellowHueSplitMax));
+        OnPropertyChanged(nameof(YellowGreenHueSplitMin));
+        OnPropertyChanged(nameof(YellowGreenHueSplitMax));
+        OnPropertyChanged(nameof(GreenBlueHueSplitMin));
+        OnPropertyChanged(nameof(GreenBlueHueSplitMax));
+        OnPropertyChanged(nameof(BlueRedHueSplitMin));
+        OnPropertyChanged(nameof(BlueRedHueSplitMax));
     }
 
     public bool FaceAutoDetect
@@ -572,7 +633,9 @@ public partial class MainViewModel : ObservableObject
         AppendLog(
             $"Scan grid saved with {ScanRectangles.Count} custom boxes " +
             $"(right {Settings.FaceOffsetX:F2}, down {Settings.FaceOffsetY:F2}, " +
-            $"red/orange split {RedOrangeHueSplit}).");
+            $"color splits R/O {RedOrangeHueSplit}, O/Y {OrangeYellowHueSplit}, " +
+            $"Y/G {YellowGreenHueSplit}, G/B {GreenBlueHueSplit}, B/R {BlueRedHueSplit}, " +
+            $"white {WhiteSaturation}).");
     }
 
     public void ReplaceScanRectangles(IReadOnlyList<NormalizedScanRect> rectangles)
@@ -875,7 +938,7 @@ public partial class MainViewModel : ObservableObject
         AppendLog("Hugging cube...");
         await _robot.HugAsync(cancellationToken);
         var faces = await ScanAllFacesAsync(cancellationToken);
-        var stickers = ColorClassifier.ClassifyCube(faces, RedOrangeHueSplit);
+        var stickers = ColorClassifier.ClassifyCube(faces, HueSplits);
         var facelets = ColorClassifier.ToKociembaString(stickers);
         AppendLog("Scanned facelet string: " + facelets);
         ApplyStickers(stickers);
@@ -1091,7 +1154,7 @@ public partial class MainViewModel : ObservableObject
 
             if (face == CubeFace.F && indices.Contains(4))
             {
-                var frontCenter = ColorClassifier.Guess(samples[4], RedOrangeHueSplit);
+                var frontCenter = ColorClassifier.Guess(samples[4], HueSplits);
                 if (frontCenter == StickerColor.White)
                 {
                     AppendLog("Front center read as White — matches logo-face load.");
@@ -1413,7 +1476,7 @@ public partial class MainViewModel : ObservableObject
         CameraImage = bitmap;
         for (int i = 0; i < 9 && i < samples.Length; i++)
         {
-            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i], RedOrangeHueSplit);
+            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i], HueSplits);
         }
     }
 
