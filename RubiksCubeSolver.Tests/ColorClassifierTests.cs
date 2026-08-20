@@ -16,6 +16,16 @@ public class ColorClassifierTests
     }
 
     [Fact]
+    public void ToHsv_RoundTripsHueNearRequestedValue()
+    {
+        var hsv = ColorClassifier.ToHsv(BgrFromHsv(10, 200, 200));
+
+        Assert.InRange(hsv.H, 8, 12);
+        Assert.InRange(hsv.S, 180, 220);
+        Assert.InRange(hsv.V, 180, 220);
+    }
+
+    [Fact]
     public void Guess_DefaultSplit_TreatsHue10AsOrange()
     {
         Assert.Equal(StickerColor.Orange, ColorClassifier.Guess(BgrFromHsv(10)));

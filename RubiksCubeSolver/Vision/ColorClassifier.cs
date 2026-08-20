@@ -3,6 +3,8 @@ using RubiksCubeSolver.Models;
 
 namespace RubiksCubeSolver.Vision;
 
+public readonly record struct HsvSample(int H, int S, int V);
+
 public static class ColorClassifier
 {
     public static StickerColor[] ClassifyFace(Scalar[] samples, ColorHueSplits? splits = null)
@@ -183,46 +185,49 @@ public static class ColorClassifier
         return new Vec3d(p.Item0, p.Item1, p.Item2);
     }
 
-    public static StickerColor Guess(Scalar bgr, int redOrangeHueSplit) =>
-        Guess(bgr, ColorHueSplits.FromRedOrange(redOrangeHueSplit));
-
-    public static StickerColor Guess(Scalar bgr, ColorHueSplits? splits = null)
+    public static HsvSample ToHsv(Scalar bgr)
     {
         using var src = new Mat(1, 1, MatType.CV_8UC3, bgr);
         using var hsv = new Mat();
         Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
         var p = hsv.Get<Vec3b>(0, 0);
-        int h = p.Item0;
-        int s = p.Item1;
-        int v = p.Item2;
+        return new HsvSample(p.Item0, p.Item1, p.Item2);
+    }
+
+    public static StickerColor Guess(Scalar bgr, int redOrangeHueSplit) =>
+        Guess(bgr, ColorHueSplits.FromRedOrange(redOrangeHueSplit));
+
+    public static StickerColor Guess(Scalar bgr, ColorHueSplits? splits = null)
+    {
+        var hsv = ToHsv(bgr);
         var split = (splits ?? new ColorHueSplits()).Normalized();
 
-        if (s < split.WhiteSaturation && v > 140)
+        if (hsv.S < split.WhiteSaturation && hsv.V > 140)
         {
             return StickerColor.White;
         }
 
-        if (s < 40 && v < 80)
+        if (hsv.S < 40 && hsv.V < 80)
         {
             return StickerColor.Unknown;
         }
 
-        if (h < split.RedOrange || h > split.BlueRed)
+        if (hsv.H < split.RedOrange || hsv.H > split.BlueRed)
         {
             return StickerColor.Red;
         }
 
-        if (h < split.OrangeYellow)
+        if (hsv.H < split.OrangeYellow)
         {
             return StickerColor.Orange;
         }
 
-        if (h < split.YellowGreen)
+        if (hsv.H < split.YellowGreen)
         {
             return StickerColor.Yellow;
         }
 
-        if (h < split.GreenBlue)
+        if (hsv.H < split.GreenBlue)
         {
             return StickerColor.Green;
         }

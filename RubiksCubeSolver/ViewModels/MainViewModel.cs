@@ -38,6 +38,51 @@ public sealed class StickerCell : ObservableObject
     }
 
     public Brush Brush => StickerPalette.BrushFor(Color);
+
+    int _hue;
+    public int Hue
+    {
+        get => _hue;
+        set
+        {
+            if (SetProperty(ref _hue, value))
+                OnPropertyChanged(nameof(SampleReadout));
+        }
+    }
+
+    int _saturation;
+    public int Saturation
+    {
+        get => _saturation;
+        set
+        {
+            if (SetProperty(ref _saturation, value))
+                OnPropertyChanged(nameof(SampleReadout));
+        }
+    }
+
+    int _value;
+    public int Value
+    {
+        get => _value;
+        set
+        {
+            if (SetProperty(ref _value, value))
+                OnPropertyChanged(nameof(SampleReadout));
+        }
+    }
+
+    public int Number => Index + 1;
+
+    public string SampleReadout => $"H {Hue}  S {Saturation}  V {Value}";
+
+    public void ApplySample(StickerColor color, HsvSample hsv)
+    {
+        Color = color;
+        Hue = hsv.H;
+        Saturation = hsv.S;
+        Value = hsv.V;
+    }
 }
 
 public static class StickerPalette
@@ -1483,7 +1528,9 @@ public partial class MainViewModel : ObservableObject
         CameraImage = bitmap;
         for (int i = 0; i < 9 && i < samples.Length; i++)
         {
-            ScanPreviewStickers[i].Color = ColorClassifier.Guess(samples[i], HueSplits);
+            ScanPreviewStickers[i].ApplySample(
+                ColorClassifier.Guess(samples[i], HueSplits),
+                ColorClassifier.ToHsv(samples[i]));
         }
     }
 

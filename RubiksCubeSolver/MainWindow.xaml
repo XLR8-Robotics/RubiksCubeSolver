@@ -284,7 +284,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <TextBlock Text="STICKER READ" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
-                                <ItemsControl ItemsSource="{Binding ScanPreviewStickers}" Width="168" Height="168" HorizontalAlignment="Left" Margin="0,0,0,16">
+                                <ItemsControl ItemsSource="{Binding ScanPreviewStickers}" Width="220" Height="220" HorizontalAlignment="Left" Margin="0,0,0,16">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <UniformGrid Rows="3" Columns="3"/>
@@ -293,100 +293,58 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding Brush}" Margin="3" CornerRadius="4"
-                                                    BorderBrush="#F5D000" BorderThickness="2"/>
+                                                    BorderBrush="#F5D000" BorderThickness="2">
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock DockPanel.Dock="Top" Text="{Binding Number}"
+                                                               Foreground="#CC000000" FontSize="10" Margin="4,2,0,0"/>
+                                                    <Border DockPanel.Dock="Bottom" Background="#CC111318" Padding="3,2" Margin="2">
+                                                        <TextBlock Text="{Binding SampleReadout}" Foreground="White"
+                                                                   FontSize="10" TextWrapping="Wrap"/>
+                                                    </Border>
+                                                </DockPanel>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
                                 <TextBlock Text="COLOR" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
-                                <TextBlock Text="Each slider is the boundary between two colors. If a sticker is named as the color on the left, drag that way; if it is named as the color on the right, drag that way. The 3×3 preview updates live."
+                                <TextBlock Text="H/S/V are what the camera sampled (OpenCV hue 0–179). Red is H below Red/orange, or above Blue/red. Set Red/orange between the H you see on a red sticker and an orange sticker. Press Keep these settings when it looks right."
                                            TextWrapping="Wrap" FontSize="12"
                                            Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
-                                <Grid Margin="0,0,0,10">
+                                <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="64"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Red / orange" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding RedOrangeHueSplitMin}" Maximum="{Binding RedOrangeHueSplitMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding RedOrangeHueSplit, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="2"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding RedOrangeHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Orange / yellow" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding OrangeYellowHueSplitMin}" Maximum="{Binding OrangeYellowHueSplitMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding OrangeYellowHueSplit, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="2"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding OrangeYellowHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Yellow / green" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding YellowGreenHueSplitMin}" Maximum="{Binding YellowGreenHueSplitMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding YellowGreenHueSplit, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="2"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding YellowGreenHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Green / blue" VerticalAlignment="Center"/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding GreenBlueHueSplitMin}" Maximum="{Binding GreenBlueHueSplitMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding GreenBlueHueSplit, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="2"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding GreenBlueHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Blue / red" VerticalAlignment="Center"
-                                               ToolTip="High-hue wrap where blue becomes red again."/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding BlueRedHueSplitMin}" Maximum="{Binding BlueRedHueSplitMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding BlueRedHueSplit, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="2"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding BlueRedHueSplit}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="108"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="48"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="White" VerticalAlignment="Center"
-                                               ToolTip="Maximum saturation still counted as white. Raise if white reads as yellow; lower if yellow reads as white."/>
-                                    <Slider Grid.Column="1"
-                                            Minimum="{Binding WhiteSaturationMin}" Maximum="{Binding WhiteSaturationMax}"
-                                            IsSnapToTickEnabled="True" TickFrequency="1"
-                                            Value="{Binding WhiteSaturation, Mode=TwoWay}"
-                                            SmallChange="1" LargeChange="5"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding WhiteSaturation}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource MutedBrush}"/>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="Red / orange" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RedOrangeHueSplit, UpdateSourceTrigger=LostFocus}"
+                                             Width="56" Margin="0,0,0,6"
+                                             ToolTip="Hue below this is red. Put it between red H and orange H."/>
+                                    <TextBlock Grid.Row="1" Text="Orange / yellow" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OrangeYellowHueSplit, UpdateSourceTrigger=LostFocus}"
+                                             Width="56" Margin="0,0,0,6"/>
+                                    <TextBlock Grid.Row="2" Text="Yellow / green" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding YellowGreenHueSplit, UpdateSourceTrigger=LostFocus}"
+                                             Width="56" Margin="0,0,0,6"/>
+                                    <TextBlock Grid.Row="3" Text="Green / blue" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GreenBlueHueSplit, UpdateSourceTrigger=LostFocus}"
+                                             Width="56" Margin="0,0,0,6"/>
+                                    <TextBlock Grid.Row="4" Text="Blue / red" VerticalAlignment="Center" Margin="0,0,0,6"
+                                               ToolTip="High hue wrap: H above this is red again."/>
+                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BlueRedHueSplit, UpdateSourceTrigger=LostFocus}"
+                                             Width="56" Margin="0,0,0,6"/>
+                                    <TextBlock Grid.Row="5" Text="White sat" VerticalAlignment="Center"
+                                               ToolTip="S below this (and bright enough) is white. Raise if white reads yellow; lower if yellow reads white."/>
+                                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding WhiteSaturation, UpdateSourceTrigger=LostFocus}"
+                                             Width="56"/>
                                 </Grid>
 
                                 <TextBlock Text="GRID" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>

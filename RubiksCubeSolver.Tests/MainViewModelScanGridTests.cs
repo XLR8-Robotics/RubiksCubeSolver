@@ -183,6 +183,18 @@ public class MainViewModelScanGridTests
     }
 
     [Fact]
+    public void ApplySample_UpdatesColorAndHsvReadout()
+    {
+        var cell = new StickerCell(4);
+
+        cell.ApplySample(StickerColor.Orange, new HsvSample(12, 190, 200));
+
+        Assert.Equal(5, cell.Number);
+        Assert.Equal(StickerColor.Orange, cell.Color);
+        Assert.Equal("H 12  S 190  V 200", cell.SampleReadout);
+    }
+
+    [Fact]
     public void RedOrangeHueSplit_ClampsOutOfRangeValuesToNeighborBand()
     {
         var viewModel = new MainViewModel(new AppSettings { RedOrangeHueSplit = 0 }, runStartupTasks: false);
