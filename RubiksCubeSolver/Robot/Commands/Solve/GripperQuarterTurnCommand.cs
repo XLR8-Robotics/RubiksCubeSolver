@@ -5,8 +5,6 @@ namespace RubiksCubeSolver.Robot.Commands.Solve;
 
 public sealed class GripperQuarterTurnCommand : IRobotCommand
 {
-    const double PulseToleranceUs = 50;
-
     readonly IRobotActuator _robot;
     readonly RobotStation _station;
     readonly bool _prime;
@@ -34,101 +32,43 @@ public sealed class GripperQuarterTurnCommand : IRobotCommand
         };
 
         var turnTarget = turner.QuarterTurnTargetUs(_prime);
+        var turnMs = MoveMs(Math.Abs(turnTarget - turner.StartUs));
+        var liftMs = MoveMs(Math.Abs(arm.OutUs - arm.InUs));
 
         _robot.SetArm(arm, inside: true);
-        await WaitUntilArmNearAsync(arm, retracted: false, cancellationToken);
+        await Task.Delay(Math.Max(200, _robot.Settings.SettleMs), cancellationToken);
 
         _robot.SetGripperQuarterTurn(turner, _prime);
-        await WaitUntilGripperNearAsync(turner, turnTarget, cancellationToken);
+        await HoldPulseAsync(turner, turnTarget, turnMs, cancellationToken);
 
-        await RetractWhileHoldingAsync(turner, arm, turnTarget, cancellationToken);
+        _robot.OnCommand?.Invoke("Hold 90° while arm retracts");
+        _robot.SetArm(arm, inside: false);
+        await HoldPulseAsync(turner, turnTarget, liftMs + 500, cancellationToken);
 
+        _robot.OnCommand?.Invoke("Arm clear — rewind gripper");
         _robot.NeutralGripper(turner);
-        await WaitUntilGripperNearAsync(turner, turner.StartUs, cancellationToken);
+        await HoldPulseAsync(turner, turner.StartUs, turnMs, cancellationToken);
 
         SetArmBackIn(arm);
-        await WaitUntilArmNearAsync(arm, retracted: false, cancellationToken);
+        await Task.Delay(liftMs, cancellationToken);
     }
 
-    async Task RetractWhileHoldingAsync(
-        GripperCalibration turner, ArmCalibration arm, double holdUs, CancellationToken cancellationToken)
+    async Task HoldPulseAsync(
+        GripperCalibration turner, double pulseUs, int durationMs, CancellationToken cancellationToken)
     {
         var started = Environment.TickCount64;
-        while (Environment.TickCount64 - started < _robot.Settings.MovementTimeoutMs)
+        while (Environment.TickCount64 - started < durationMs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _robot.SetGripperMicroseconds(turner, holdUs);
-            _robot.SetArm(arm, inside: false);
-            if (ArmNear(arm, retracted: true))
-            {
-                break;
-            }
-
-            await Task.Delay(40, cancellationToken);
+            _robot.SetGripperMicroseconds(turner, pulseUs);
+            await Task.Delay(50, cancellationToken);
         }
 
-        _robot.SetGripperMicroseconds(turner, holdUs);
-        await Task.Delay(Math.Max(300, _robot.Settings.SettleMs * 2), cancellationToken);
-        _robot.SetGripperMicroseconds(turner, holdUs);
+        _robot.SetGripperMicroseconds(turner, pulseUs);
     }
 
-    async Task WaitUntilGripperNearAsync(GripperCalibration turner, double targetUs, CancellationToken cancellationToken)
-    {
-        var travel = Math.Abs(targetUs - ( _robot.GetPositionMicroseconds(turner.Port) ?? turner.StartUs));
-        var minMs = (int)Math.Clamp(travel / 1.2 + 250, 400, _robot.Settings.MovementTimeoutMs);
-        var started = Environment.TickCount64;
-        while (Environment.TickCount64 - started < _robot.Settings.MovementTimeoutMs)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _robot.SetGripperMicroseconds(turner, targetUs);
-
-            var elapsed = Environment.TickCount64 - started;
-            var pos = _robot.GetPositionMicroseconds(turner.Port);
-            if (elapsed >= minMs)
-            {
-                if (pos is null || Math.Abs(pos.Value - targetUs) <= PulseToleranceUs)
-                {
-                    return;
-                }
-
-                if (elapsed >= minMs + 400)
-                {
-                    return;
-                }
-            }
-
-            await Task.Delay(40, cancellationToken);
-        }
-    }
-
-    async Task WaitUntilArmNearAsync(ArmCalibration arm, bool retracted, CancellationToken cancellationToken)
-    {
-        var started = Environment.TickCount64;
-        while (Environment.TickCount64 - started < _robot.Settings.MovementTimeoutMs)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _robot.SetArm(arm, inside: !retracted);
-            if (ArmNear(arm, retracted))
-            {
-                return;
-            }
-
-            await Task.Delay(40, cancellationToken);
-        }
-    }
-
-    bool ArmNear(ArmCalibration arm, bool retracted)
-    {
-        var pos = _robot.GetPositionMicroseconds(arm.Port);
-        if (pos is null)
-        {
-            return false;
-        }
-
-        var target = retracted ? arm.OutUs : arm.InUs;
-        var travel = Math.Max(1, Math.Abs(arm.OutUs - arm.InUs));
-        return Math.Abs(pos.Value - target) <= Math.Max(50, travel * 0.08);
-    }
+    int MoveMs(double travelUs) =>
+        (int)Math.Clamp(travelUs / 1.2 + 300, 500, _robot.Settings.MovementTimeoutMs);
 
     void SetArmBackIn(ArmCalibration arm)
     {

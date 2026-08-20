@@ -38,7 +38,7 @@ public sealed class FrontBackSolveRoutine
 
         if (FaceIsOnTop(face))
         {
-            await ResetYawThenHugAsync(cancellationToken);
+            await PrepareTopThenResetPitchClawsAsync(cancellationToken);
             return;
         }
 
@@ -60,7 +60,7 @@ public sealed class FrontBackSolveRoutine
             throw new InvalidOperationException($"Could not bring {face} onto the Top gripper.");
         }
 
-        await ResetYawThenHugAsync(cancellationToken);
+        await PrepareTopThenResetPitchClawsAsync(cancellationToken);
     }
 
     public Task TurnAsUAsync(bool prime, CancellationToken cancellationToken) =>
@@ -68,35 +68,56 @@ public sealed class FrontBackSolveRoutine
 
     public async Task RestoreForwardAsync(CancellationToken cancellationToken)
     {
+        Log("After F/B: Left/Right pull back and rewind");
+        await RetractAndRewindPitchClawsAsync(cancellationToken);
+
         if (_robot.Orientation.StationOf(CubeFace.F) is RobotStation.Front
             && _robot.Orientation.StationOf(CubeFace.B) is RobotStation.Back)
         {
-            await _hug.ExecuteAsync(cancellationToken);
+            await _hug.ArmsOnlyAsync(cancellationToken);
             return;
         }
 
-        Log("Restore Front to camera");
-        await _pitchReturn.ExecuteAsync(cancellationToken);
-        await _hug.ExecuteAsync(cancellationToken);
+        var undoOpposite = FaceIsOnTop(CubeFace.F)
+            ? _robot.Settings.InvertPitch
+            : !_robot.Settings.InvertPitch;
+
+        Log("Pitch Front back to camera");
+        await _secureRl.ExecuteAsync(cancellationToken);
+        await _robot.PitchSpin90Async(cancellationToken, undoOpposite);
+
+        Log("Left/Right pull back and rewind after restore pitch");
+        await PrepareTopThenResetPitchClawsAsync(cancellationToken);
     }
 
-    async Task ResetYawThenHugAsync(CancellationToken cancellationToken)
+    async Task PrepareTopThenResetPitchClawsAsync(CancellationToken cancellationToken)
     {
         if (_robot.PairNearStart(_robot.Settings.TopTurner, _robot.Settings.BottomTurner) != true)
         {
             await _robot.TopBottomOutAsync(cancellationToken);
-            await _robot.WaitUntilArmsNearAsync(_robot.Settings.TopArm, _robot.Settings.BottomArm, retracted: true, cancellationToken);
+            await Task.Delay(ArmClearMs(_robot.Settings.TopArm), cancellationToken);
             await _robot.YawTurnersToStartAsync(cancellationToken);
             await _robot.WaitUntilPairNearStartAsync(_robot.Settings.TopTurner, _robot.Settings.BottomTurner, cancellationToken);
         }
 
+        await _robot.TopBottomInAsync(cancellationToken, squeeze: false);
+        await Task.Delay(Math.Max(400, _robot.Settings.SettleMs * 2), cancellationToken);
+
+        await RetractAndRewindPitchClawsAsync(cancellationToken);
         await _hug.ArmsOnlyAsync(cancellationToken);
     }
 
-    bool OppositePitchToPutOnTop(CubeFace face)
+    async Task RetractAndRewindPitchClawsAsync(CancellationToken cancellationToken)
     {
-        // Pitch(true) puts Front on Top; Pitch(false) puts Back on Top.
-        // PitchSpin90 invert = InvertPitch ^ opposite.
-        return face is CubeFace.F ? !_robot.Settings.InvertPitch : _robot.Settings.InvertPitch;
+        await _robot.LeftRightOutAsync(cancellationToken, clearOfCube: true);
+        await Task.Delay(ArmClearMs(_robot.Settings.LeftArm), cancellationToken);
+        await _robot.PitchTurnersToStartAsync(cancellationToken);
+        await _robot.WaitUntilPairNearStartAsync(_robot.Settings.LeftTurner, _robot.Settings.RightTurner, cancellationToken);
     }
+
+    int ArmClearMs(ArmCalibration arm) =>
+        (int)Math.Clamp(Math.Abs(arm.OutUs - arm.InUs) / 1.2 + 400, 800, _robot.Settings.MovementTimeoutMs);
+
+    bool OppositePitchToPutOnTop(CubeFace face) =>
+        face is CubeFace.F ? !_robot.Settings.InvertPitch : _robot.Settings.InvertPitch;
 }
