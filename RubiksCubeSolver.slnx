@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="RubiksCubeSolver/RubiksCubeSolver.csproj" />
+  <Project Path="RubiksCubeSolver.Tests/RubiksCubeSolver.Tests.csproj" />
 </Solution>

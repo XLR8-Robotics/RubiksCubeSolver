@@ -66,7 +66,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 16;
+    public const int CurrentCalibrationVersion = 17;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -211,6 +211,13 @@ public sealed class AppSettings
                 settings.SwapLeftRightStations();
             }
 
+            // Version 16 incorrectly flipped pitch direction while renaming the
+            // left/right stations, which swapped F and B during solve.
+            if (settings.CalibrationVersion == 16)
+            {
+                settings.InvertPitch = !settings.InvertPitch;
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
@@ -220,13 +227,12 @@ public sealed class AppSettings
 
     /// <summary>
     /// Channel pulse widths stay on the same Maestro ports. Only the Left/Right names swap
-    /// so R uses the right gripper (camera view). InvertPitch flips so scan pitch is unchanged.
+    /// so R uses the right gripper (camera view). Pitch direction is independent.
     /// </summary>
     public void SwapLeftRightStations()
     {
         (RightTurner, LeftTurner) = (LeftTurner, RightTurner);
         (RightArm, LeftArm) = (LeftArm, RightArm);
-        InvertPitch = !InvertPitch;
     }
 
     public void ApplyCenteredHome()
