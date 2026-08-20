@@ -331,7 +331,7 @@
                         <UniformGrid Columns="2">
                             <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
                                 <StackPanel>
-                                    <TextBlock Text="Right turner  ·  port 0" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Right turner  ·  port 6" FontWeight="SemiBold"/>
                                     <WrapPanel Margin="0,6,0,0">
                                         <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.RightTurner.Port}" Width="70" Margin="0,0,12,4"/>
@@ -346,7 +346,7 @@
                             </Border>
                             <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
                                 <StackPanel>
-                                    <TextBlock Text="Right arm  ·  port 1" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Right arm  ·  port 7" FontWeight="SemiBold"/>
                                     <WrapPanel Margin="0,6,0,0">
                                         <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.RightArm.Port}" Width="70" Margin="0,0,12,4"/>
@@ -387,7 +387,7 @@
                             </Border>
                             <Border Style="{StaticResource Panel}" Margin="0,0,8,8">
                                 <StackPanel>
-                                    <TextBlock Text="Left turner  ·  port 6" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Left turner  ·  port 0" FontWeight="SemiBold"/>
                                     <WrapPanel Margin="0,6,0,0">
                                         <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.LeftTurner.Port}" Width="70" Margin="0,0,12,4"/>
@@ -402,7 +402,7 @@
                             </Border>
                             <Border Style="{StaticResource Panel}" Margin="8,0,0,8">
                                 <StackPanel>
-                                    <TextBlock Text="Left arm  ·  port 7" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Left arm  ·  port 1" FontWeight="SemiBold"/>
                                     <WrapPanel Margin="0,6,0,0">
                                         <TextBlock Text="Port" Width="70" VerticalAlignment="Center"/>
                                         <TextBox Text="{Binding Settings.LeftArm.Port}" Width="70" Margin="0,0,12,4"/>

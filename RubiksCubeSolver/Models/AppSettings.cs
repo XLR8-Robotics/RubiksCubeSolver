@@ -66,7 +66,7 @@ public sealed class ArmCalibration
 
 public sealed class AppSettings
 {
-    public const int CurrentCalibrationVersion = 15;
+    public const int CurrentCalibrationVersion = 16;
 
     public string? MaestroPort { get; set; }
     public int CameraIndex { get; set; }
@@ -99,12 +99,12 @@ public sealed class AppSettings
     public int MovementTimeoutMs { get; set; } = 4000;
     public int CalibrationVersion { get; set; }
 
-    public GripperCalibration RightTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700, OppositeEndUs = 496 };
-    public ArmCalibration RightArm { get; set; } = new() { Port = 1, InUs = 1446, OutUs = 2496 };
+    public GripperCalibration RightTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700, OppositeEndUs = 496 };
+    public ArmCalibration RightArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 2496 };
     public GripperCalibration TopTurner { get; set; } = new() { Port = 2, StartUs = 992, EndUs = 1700, OppositeEndUs = 496 };
     public ArmCalibration TopArm { get; set; } = new() { Port = 3, InUs = 963, OutUs = 2233 };
-    public GripperCalibration LeftTurner { get; set; } = new() { Port = 6, StartUs = 1026.25, EndUs = 1700, OppositeEndUs = 496 };
-    public ArmCalibration LeftArm { get; set; } = new() { Port = 7, InUs = 1597.75, OutUs = 2496 };
+    public GripperCalibration LeftTurner { get; set; } = new() { Port = 0, StartUs = 1036, EndUs = 1700, OppositeEndUs = 496 };
+    public ArmCalibration LeftArm { get; set; } = new() { Port = 1, InUs = 1446, OutUs = 2496 };
     public GripperCalibration BottomTurner { get; set; } = new() { Port = 8, StartUs = 1079.50, EndUs = 1774, OppositeEndUs = 496 };
     public ArmCalibration BottomArm { get; set; } = new() { Port = 9, InUs = 1408, OutUs = 2496 };
 
@@ -206,11 +206,27 @@ public sealed class AppSettings
                 }
             }
 
+            if (settings.CalibrationVersion < 16)
+            {
+                settings.SwapLeftRightStations();
+            }
+
             settings.CalibrationVersion = CurrentCalibrationVersion;
             settings.Save();
         }
 
         return settings;
+    }
+
+    /// <summary>
+    /// Channel pulse widths stay on the same Maestro ports. Only the Left/Right names swap
+    /// so R uses the right gripper (camera view). InvertPitch flips so scan pitch is unchanged.
+    /// </summary>
+    public void SwapLeftRightStations()
+    {
+        (RightTurner, LeftTurner) = (LeftTurner, RightTurner);
+        (RightArm, LeftArm) = (LeftArm, RightArm);
+        InvertPitch = !InvertPitch;
     }
 
     public void ApplyCenteredHome()
