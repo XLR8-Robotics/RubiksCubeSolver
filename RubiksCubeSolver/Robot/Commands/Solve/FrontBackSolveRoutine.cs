@@ -43,7 +43,7 @@ public sealed class FrontBackSolveRoutine
             return;
         }
 
-        var opposite = OppositePitchToPutOnTop(face);
+        var opposite = OppositePitchToPutOnTop(face, _robot.Settings.InvertPitch);
         _ontoTopOpposite = opposite;
         Log($"{face} → Top (pitch {(opposite ? "other way" : "90°")})");
         await _secureRl.ExecuteAsync(cancellationToken);
@@ -104,8 +104,8 @@ public sealed class FrontBackSolveRoutine
     int ArmClearMs(ArmCalibration arm) =>
         (int)Math.Clamp(Math.Abs(arm.OutUs - arm.InUs) / 1.2 + 400, 800, _robot.Settings.MovementTimeoutMs);
 
-    bool OppositePitchToPutOnTop(CubeFace face) =>
-        face is CubeFace.F ? _robot.Settings.InvertPitch : !_robot.Settings.InvertPitch;
+    public static bool OppositePitchToPutOnTop(CubeFace face, bool invertPitch) =>
+        face is CubeFace.F ? !invertPitch : invertPitch;
 
     void AlignSoftwareWithPitchedFace(CubeFace face, bool opposite)
     {

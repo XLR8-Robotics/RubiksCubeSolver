@@ -1,4 +1,5 @@
 ﻿using RubiksCubeSolver.Models;
+using RubiksCubeSolver.Robot.Commands.Solve;
 
 namespace RubiksCubeSolver.Tests;
 
@@ -23,5 +24,18 @@ public class AppSettingsTests
         Assert.Equal((byte)0, settings.LeftTurner.Port);
         Assert.Equal((byte)1, settings.LeftArm.Port);
         Assert.False(settings.InvertPitch);
+    }
+
+    [Theory]
+    [InlineData(CubeFace.F, false, true)]
+    [InlineData(CubeFace.B, false, false)]
+    [InlineData(CubeFace.F, true, false)]
+    [InlineData(CubeFace.B, true, true)]
+    public void FrontBackPitch_PutsRequestedFaceOnTop(
+        CubeFace face, bool invertPitch, bool expectedOpposite)
+    {
+        Assert.Equal(
+            expectedOpposite,
+            FrontBackSolveRoutine.OppositePitchToPutOnTop(face, invertPitch));
     }
 }
